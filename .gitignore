@@ -7,7 +7,3 @@ bin/
 obj/
 .vs/
 *.user
-node_modules/
-website/dist/
-*.tsbuildinfo
-*.local

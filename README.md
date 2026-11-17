@@ -2,7 +2,6 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Target: .NET 9 / 10 WPF, WinUI 3 & C++/WinRT](https://img.shields.io/badge/Target-.NET%209%2F10%20WPF%20%7C%20WinUI%203%20%7C%20C%2B%2B%2FWinRT-512BD4.svg)](#)
-[![Website: GitHub Pages](https://img.shields.io/badge/Showcase-GitHub%20Pages-D96B38.svg)](https://destro01400.github.io/windows-native/)
 
 An agent skill for full-lifecycle **native Windows 10/11 desktop application engineering** across **WPF (`.NET 9/10`)**, **WinUI 3 (`Windows App SDK` + NativeAOT)**, **C++/WinRT**, and **modern Win32/DWM/CsWin32**—covering architecture, OS interop, security, packaging, code signing, auto-updates, Fluent 2 UI/motion, diagnostics, and a zero-dependency Python static auditor.
 
@@ -57,18 +56,16 @@ windows-native/
 │   ├── motion-and-animations.md                     # Fluent curves, KeySpline, VSM, CompositionTarget, iGPU perf
 │   ├── xaml-architecture-and-quality.md             # Layered tokens, Mvvm 8.4, virtualization, streaming, UIA
 │   └── custom-brand-theming.md                      # Custom palettes, embedded fonts, control coverage, frozen cache
-├── scripts/
-│   ├── audit_windows_app.py                         # Zero-dependency Python auditor (.csproj, manifest, C#, XAML/UI)
-│   └── audit_wpf_ui.py                              # Backwards-compatible UI-only CLI wrapper (--ui-only mode)
-├── website/                                         # Interactive dark charcoal showcase site (React + Vite + TypeScript)
-└── .github/workflows/deploy-pages.yml               # GitHub Actions workflow to build & deploy website/ to GitHub Pages
+└── scripts/
+    ├── audit_windows_app.py                         # Zero-dependency Python auditor (.csproj, manifest, C#, XAML/UI)
+    └── audit_wpf_ui.py                              # Backwards-compatible UI-only CLI wrapper (--ui-only mode)
 ```
 
 ---
 
 ## Installation
 
-### Skills CLI / Antigravity / Claude Code / Codex / Cursor
+### Skills CLI / Antigravity / Claude Code / Codex / OpenCode
 
 ```bash
 # Skills CLI
@@ -77,8 +74,14 @@ npx skills add Destro01400/windows-native
 # Project-scoped (Antigravity)
 git clone https://github.com/Destro01400/windows-native.git .agent/skills/windows-native
 
-# Or project-scoped (Claude Code)
+# Project-scoped (Claude Code)
 git clone https://github.com/Destro01400/windows-native.git .claude/skills/windows-native
+
+# Project-scoped (Codex)
+git clone https://github.com/Destro01400/windows-native.git .agents/skills/windows-native
+
+# Project-scoped (OpenCode)
+git clone https://github.com/Destro01400/windows-native.git .opencode/skills/windows-native
 ```
 
 ### Running the Static Windows App Auditor
@@ -129,6 +132,12 @@ git clone https://github.com/Destro01400/windows-native.git .agent/skills/window
 
 # No Claude Code (dentro da pasta do projeto)
 git clone https://github.com/Destro01400/windows-native.git .claude/skills/windows-native
+
+# No Codex (dentro da pasta do projeto)
+git clone https://github.com/Destro01400/windows-native.git .agents/skills/windows-native
+
+# No OpenCode (dentro da pasta do projeto)
+git clone https://github.com/Destro01400/windows-native.git .opencode/skills/windows-native
 ```
 
 Para auditar qualquer projeto Windows localmente:
