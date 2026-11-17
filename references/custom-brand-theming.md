@@ -1,0 +1,122 @@
+# Adapting Windows 11 Rules to a Custom Brand Theme
+
+> **Scope:** How to build a distinctive custom-branded desktop app (warm light editorial, dark studio, or high-craft product identity) on WPF `.NET 9/10` while keeping Windows 11 ergonomics, WCAG AA legibility, integrated-GPU speed, and consistent control polish.
+
+## Table of Contents
+
+1. [Brand Personality vs. Windows Native Coherence](#1-brand-personality-vs-windows-native-coherence)
+2. [Semantic Token Architecture & Contrast Pitfalls](#2-semantic-token-architecture--contrast-pitfalls)
+3. [Styling Every Built-In Control (No Aero Leaks)](#3-styling-every-built-in-control-no-aero-leaks)
+4. [Embedded Brand Fonts & Icon Font Discipline](#4-embedded-brand-fonts--icon-font-discipline)
+5. [Shadows, Surfaces & Opaque vs. Mica Window Chrome](#5-shadows-surfaces--opaque-vs-mica-window-chrome)
+6. [Frozen Resource Caching Pattern (`Theme.cs`)](#6-frozen-resource-caching-pattern-theme-helper)
+
+---
+
+## 1. Brand Personality vs. Windows Native Coherence
+
+Custom brand themes fail when they either replace Windows conventions with jarring web/mobile clones OR leave half the controls in stock Windows Aero. Follow the **80/20 rule**:
+
+- **Customize:** Color palette, neutral surface warmth/coolness, brand typography (`Serif` display + clean `Sans` UI + `Mono` metadata), card padding/radii (preserving concentric nesting), and custom brand controls (hero cards, visualizers).
+- **Preserve Native Windows Behavior:** Window silhouette (title/controls alignment, inactive dimming), Snap Layouts (`HTMAXBUTTON`), Per-Monitor DPI scaling, keyboard shortcuts (`Ctrl+C/F/S/W`, `F6`, `Esc`), `FocusVisualStyle`, `SystemParameters.ClientAreaAnimation` reduced motion, and Contrast theme fallbacks.
+
+---
+
+## 2. Semantic Token Architecture & Contrast Pitfalls
+
+Define **role-based semantic keys** rather than color-name keys so surfaces and states remain consistent across the app and can even swap Light/Dark/HighContrast at runtime:
+
+| Role | Token Naming Example | Rule |
+|---|---|---|
+| **Surface Ladder (0 -> 4)** | `Surface0` (window) -> `Surface1` (sidebar/pane) -> `Surface2` (card) -> `Surface3` (pill/chip) -> `Surface4` (hover/inset input) | Keep a clean luminance step between window/sidebar (`Surface0`/`1`) and elevated cards (`Surface2`) so cards separate without heavy shadows. |
+| **Brand Accent** | `Accent`, `AccentDim` (hover/pressed), `AccentSoft` (subtle tint container), `OnAccent` | Reserve saturated `Accent` for primary CTAs, active nav strips, focus outlines, and selection — never paint large backgrounds solid accent. |
+| **Borders (0 -> 2)** | `Border0` (hairline divider), `Border1` (card stroke), `Border2` (input/interactive outline) | Scale stroke contrast subtly from structural dividers up to interactive controls. |
+| **Text Ink** | `TextPrimary`, `TextSecondary`, `TextMuted` | **Verify `TextMuted` against ALL surfaces (`Surface0..4`)!** Warm/pastel muted grays (e.g., `#8D7B68` on `#FDF6EC` cream = `3.79:1`) routinely fail `4.5:1` WCAG AA! Darken muted body/caption ink (`>= 4.5:1`) and reserve lighter tones solely for `>= 24px` display or decorative borders. |
+| **Semantic Status Badges** | `Success`/`SuccessSoft`/`SuccessDim`, `Warning`/`WarningSoft`/`WarningDim`, `Error`/`ErrorSoft`/`ErrorDim` | **Never place bright status foregrounds (`#059669`, `#D97706`, `#EF4444`) or white `#FFFFFF` directly over pastel tints or `#EF4444` fills for small badge text!** Ratio drops to `2.8:1–3.8:1`. Pair soft badge fills with darker `SuccessDim` / `WarningDim` / `ErrorDim` text (`>= 4.5:1`), and darken error button fills (`#C42B1C` or `#DC2626` + `#FFFFFF`) if using white text. |
+
+### Common Token Drift to Eliminate
+- Hardcoded `#FFFFFF`, `#F5ECE0`, or `new SolidColorBrush(Color.FromRgb(...))` inside `Views/*.xaml` or code-behind C# builders. Always resolve from the theme dictionary (`{DynamicResource ...}` in XAML, cached frozen brushes in C#).
+- Stale colors inside `DropShadowEffect` or `LinearGradientBrush` stops: reference theme colors (`Color="{StaticResource AccentColor}"` or frozen theme brushes) so palettes never drift out of sync.
+
+---
+
+## 3. Styling Every Built-In Control (No Aero Leaks)
+
+When a window does **not** use `ThemeMode` / `PresentationFramework.Fluent`, unstyled WPF controls (`ComboBox`, `CheckBox`, `RadioButton`, `Slider`, `ProgressBar`, `Expander`, `ScrollBar`, `ToolTip`) fall back to classic Windows Aero blue/gray chrome—clashing sharply inside a custom-branded card.
+
+Always include lightweight implicit styles (`TargetType="ComboBox"`, `TargetType="CheckBox"`, etc.) in `App.xaml` (or `Styles/Inputs.xaml`) covering:
+1. **`ComboBox` & `ComboBoxItem`:** Match input corner radius (`ControlCornerRadius` or `8–12px`), `Surface4` fill, `Border2` focus state, and custom `Popup` border with `Surface2` + `1px` `Border1` + single restrained drop shadow.
+2. **`CheckBox` & `RadioButton`:** `20×20` box/ring (`4px` radius / `10px` circle), `Border2` unchecked -> `Accent` fill + `OnAccent` check glyph when checked, plus `Windows11FocusVisual`.
+3. **`Slider`:** `4px` rounded track (`Surface4` track, `Accent` active fill), `18×18` circular thumb (`Surface2` fill + `Accent` stroke, scaling cleanly on hover/press).
+4. **`ProgressBar`:** `Height="3"` or `4`, `CornerRadius="2"`, `Surface4` track, `Accent` indicator (and `IsIndeterminate` sweep matching Fluent `2000 ms` curve).
+5. **`Expander`:** Clean header toggle button (no dotted default Aero circle!) + animated `TranslateTransform` or `SmoothExpandBehavior`.
+6. **`ScrollBar` & `ToolTip`:** Thin `8px` trackless thumb (`Border2`), and contrast-safe tooltip matching the brand tone (`4px` corner radius).
+
+---
+
+## 4. Embedded Brand Fonts & Icon Font Discipline
+
+- **Packaging Embedded Fonts (`.ttf` / `.otf`):**
+  1. Set Build Action to `<Resource Include="Fonts\*.ttf;Fonts\*.otf" />` (never `<EmbeddedResource>`).
+  2. Reference in XAML using the assembly pack URI + internal OpenType family name:
+     ```xml
+     <FontFamily x:Key="FontSans">
+         pack://application:,,,/MyApp;component/Fonts/#Work Sans, Segoe UI Variable Text, Segoe UI, Yu Gothic UI, Microsoft YaHei UI, Malgun Gothic, Nirmala UI
+     </FontFamily>
+     ```
+  3. In C#, use the two-argument constructor:
+     `new FontFamily(new Uri("pack://application:,,,/"), "./Fonts/#Work Sans")` (`new FontFamily("pack://...")` as a single string is invalid in WPF!).
+  4. Apply `LineHeight` + `LineStackingStrategy="BlockLineHeight"` explicitly in `TextBlock` ramp styles, and scale font sizes on `UISettings.TextScaleFactorChanged` when targeting `net10.0-windows10.0.19041.0`+.
+- **Icon Consistency:**
+  - Pick **one** icon system (e.g., `Segoe Fluent Icons, Segoe MDL2 Assets` or embedded `Material Icons Outlined` / `FluentSystemIcons`).
+  - Centralize icon codepoints in **one** C#/XAML map (`Icons.cs` / `Icons.xaml`) so `"Copy"` or `"Settings"` never drifts across two different glyphs in different views.
+  - **Ban mixed Unicode emojis** (`⚡`, `▶`, `⏸`, `✓`) in buttons/pills alongside vector font icons — raw color emojis break monochrome harmony and render unpredictably across Windows builds.
+
+---
+
+## 5. Shadows, Surfaces & Opaque vs. Mica Window Chrome
+
+- **Single Soft Shadow Rule (Integrated GPU Friendly):** Never stack dual neumorphic `DropShadowEffect`s (`Light` top-left + `Dark` bottom-right) or place `DropShadowEffect` inside `ItemTemplate` / `DataTemplate` repeating rows. Use **one** frozen soft shadow strictly on floating overlays, popups, and key focal cards (`BlurRadius="16..20"`, `Opacity="0.08..0.14"`), and differentiate inline list rows by `1px` `Border1` + `Surface2` over `Surface0`/`Surface1`.
+- **Opaque Brand Window vs. Real Mica:**
+  - **If opaque brand canvas** (e.g., solid warm cream `#FDF6EC` or solid branded dark `#181615`): **match `DWMWA_USE_IMMERSIVE_DARK_MODE`** (`0` for light, `1` for dark — never `1` on a light app!), apply `DWMWA_WINDOW_CORNER_PREFERENCE = Round (2)`, use `GlassFrameThickness="1"` (or `-1` with opaque root border), and **omit `DWMWA_SYSTEMBACKDROP_TYPE = 2 (Mica)`** so DWM doesn't composite wallpaper blur behind solid pixels.
+  - **If Mica-tinted brand canvas:** Set `Window.Background="Transparent"`, `CompositionTarget.BackgroundColor = Colors.Transparent`, `GlassFrameThickness="-1"`, `DWMWA_SYSTEMBACKDROP_TYPE = 2`, and tint `Surface0` / `Surface1` with a semi-transparent brand wash (`#D9...` / `#B3...`) so Windows wallpaper depth bleeds through gently while preserving brand warmth.
+
+---
+
+## 6. Frozen Resource Caching Pattern (`Theme` Helper)
+
+When procedural C# builders (Markdown blocks, tool cards, custom `OnRender` visuals) look up brushes repeatedly, calling `Application.Current.FindResource(key)` on every loop iteration wastes hash lookups and risks returning unfrozen brushes if `po:Freeze="True"` was missed.
+
+```csharp
+using System.Collections.Concurrent;
+using System.Windows;
+using System.Windows.Media;
+
+namespace MyApp.Controls;
+
+public static class ThemeResources
+{
+    private static readonly ConcurrentDictionary<string, Brush> BrushCache = new();
+
+    public static void ClearCache() => BrushCache.Clear(); // Call after runtime theme dictionary swap
+
+    public static Brush Brush(string key)
+    {
+        if (BrushCache.TryGetValue(key, out Brush? cached))
+            return cached;
+
+        if (Application.Current?.TryFindResource(key) is Brush found)
+        {
+            if (found.CanFreeze && !found.IsFrozen)
+            {
+                found = found.CloneCurrentValue();
+                found.Freeze();
+            }
+            if (found.IsFrozen) BrushCache.TryAdd(key, found);
+            return found;
+        }
+        return Brushes.Transparent;
+    }
+}
+```
+*(In XAML `ResourceDictionary` files, add `xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"` + `xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"` + `mc:Ignorable="po"` and put `po:Freeze="True"` on every static `SolidColorBrush` and `DropShadowEffect`.)*
