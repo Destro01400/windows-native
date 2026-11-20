@@ -1,6 +1,8 @@
 # Motion Design & High-Performance WPF Animations (.NET 9/10)
 
 > **Scope:** Fluent 2 / Windows 11 motion principles, timing/easing translation into WPF `KeySpline`s, `VisualStateManager` vs. triggers, complete compile-verified MVVM animation recipes, `CompositionTarget.Rendering` per-frame loops, GPU optimization for integrated graphics, reduced motion, and common WPF animation bugs.
+>
+> **Related:** [`scaffold_windows_app.py`](../scripts/scaffold_windows_app.py) (`wpf-modern`) includes `Motion/MotionSettings.cs`. See [compiler-traps-and-compat.md](compiler-traps-and-compat.md) for `CS9248` (`partial` properties) caveats and [graphics-media-and-windows-ai.md](graphics-media-and-windows-ai.md) for the custom GPU rendering ladder (`SkiaSharp.Views.WPF`, `Win2D`, `D3DImage`, `DirectComposition`).
 
 ## Table of Contents
 

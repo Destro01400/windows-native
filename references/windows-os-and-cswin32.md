@@ -1,6 +1,8 @@
 # Windows OS Interop, CsWin32, Security & Hardware Events (.NET 9/10)
 
 > **Scope:** Modern Win32 interop via `Microsoft.Windows.CsWin32` vs. `[LibraryImport]`, `SafeHandle` and `Lease()` lifetimes, `.NET 8/9/10` Shell pickers (`OpenFileDialog`, `OpenFolderDialog`, WinUI 3 `InitializeWithWindow`), COM `IFileOpenDialog` / `SHGetKnownFolderPath`, Drag-Drop + UIPI, `RegisterHotKey` vs. `WH_KEYBOARD_LL`, DPAPI (`CurrentUser`), Windows Credential Manager (`CredWriteW`/`CredReadW`) vs. `PasswordVault`, UAC/`app.manifest`, Registry `Run` + `StartupApproved` vs. MSIX `StartupTask`, `WM_DEVICECHANGE`, WASAPI/`NAudio` traps, and leak-free `SystemEvents.PowerModeChanged`.
+>
+> **Related:** Starter `NativeMethods.txt`/`NativeMethods.json` setup is included in [`scaffold_windows_app.py`](../scripts/scaffold_windows_app.py) (`wpf-modern`). See [compiler-traps-and-compat.md](compiler-traps-and-compat.md) for `PInvoke001`/`PInvoke017`/`SYSLIB1062` diagnostics, [security-hardening-and-enterprise.md](security-hardening-and-enterprise.md) for `SetDefaultDllDirectories` DLL-hijack defense, Windows Hello, and TLS/proxy hardening, and [graphics-media-and-windows-ai.md](graphics-media-and-windows-ai.md) for full WASAPI loopback capture and HID/Serial/BLE device recipes.
 
 ## Table of Contents
 

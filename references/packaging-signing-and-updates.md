@@ -1,6 +1,8 @@
 # Windows App Packaging, NativeAOT, Code Signing & Auto-Updates (.NET 9/10)
 
 > **Scope:** Unpackaged vs. self-contained vs. single-file publishing, ReadyToRun vs. NativeAOT (`NETSDK1168` in WPF vs. WinUI 3 / CsWinRT), MSIX & External Location Sparse Packages, WiX Toolset v5 vs. Inno Setup 6 (per-user vs. per-machine + WebView2 / .NET bootstrappers), Velopack vs. MSIX AppInstaller auto-updates, and Azure Artifact Signing / SmartScreen engineering.
+>
+> **Related:** See [compiler-traps-and-compat.md](compiler-traps-and-compat.md) for `NETSDK1168`, `IL3000`, `C00CE014`, and Windows `19041`/`26100` requirements, [webview2-and-hybrid-apps.md](webview2-and-hybrid-apps.md) for Evergreen vs. Fixed Version WebView2 deployment, [background-services-and-ipc.md](background-services-and-ipc.md) for WiX v5 `<ServiceInstall>` & `sc.exe failure` service recovery, and [security-hardening-and-enterprise.md](security-hardening-and-enterprise.md) for AppLocker/WDAC compatibility, SBOMs, and deterministic CI builds.
 
 ## Table of Contents
 

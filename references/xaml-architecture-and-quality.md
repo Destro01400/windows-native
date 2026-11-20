@@ -1,6 +1,8 @@
 # WPF UI Architecture, Performance, Accessibility & Testing (.NET 9/10)
 
 > **Scope:** Scalable XAML token architecture, `ControlTemplate`/`Generic.xaml`, `CommunityToolkit.Mvvm` 8.4 (C# 14), streaming/Markdown performance, UI virtualization, UI Automation accessibility, smart chat UX, localization, and `FlaUI.UIA3` testing.
+>
+> **Related:** Scaffold the layered `Themes/Tokens.xaml` + `MainViewModel.cs` layout via [`scaffold_windows_app.py`](../scripts/scaffold_windows_app.py) (`wpf-modern`). See [compiler-traps-and-compat.md](compiler-traps-and-compat.md) for `CS9248`, `NETSDK1168`, and `MC3072`, and [webview2-and-hybrid-apps.md](webview2-and-hybrid-apps.md) when embedding rich web/SPA views instead of `FlowDocument`/Markdig.
 
 ## Table of Contents
 

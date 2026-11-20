@@ -1,6 +1,8 @@
 # Windows App Architecture, Configuration, IPC & Lifecycle (.NET 9/10)
 
 > **Scope:** `.NET 9/10` Generic Host DI in WPF and WinUI 3, `CultureInfo` `XmlLanguage` overrides, `IOptionsMonitor` vs. `%LocalAppData%` atomic persistence, SQLite WAL mode on Windows, `Mutex` (`Local\` vs. `Global\`) + `NamedPipeServerStream` (`CurrentUserOnly`) single-instance IPC, custom URI protocols (`HKCU\Software\Classes` vs. MSIX) with command-injection defense, crash/session handlers, WER Restart/Recovery, and non-blocking structured logging.
+>
+> **Related:** Bootstrap Generic Host + `Mutex` single-instance wiring with [`scaffold_windows_app.py`](../scripts/scaffold_windows_app.py) (`wpf-modern` / `winui3-aot`). See [compiler-traps-and-compat.md](compiler-traps-and-compat.md) for `Mutex` premature GC / `CS9248` traps, [background-services-and-ipc.md](background-services-and-ipc.md) for Session 0 Windows Services + `PipeSecurity` ACLs + gRPC over Named Pipes, and [security-hardening-and-enterprise.md](security-hardening-and-enterprise.md) for OAuth 2.0 PKCE loopback auth caveats.
 
 ## Table of Contents
 

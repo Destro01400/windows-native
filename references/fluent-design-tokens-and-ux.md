@@ -1,6 +1,8 @@
 # Windows 11 & Fluent 2 Design System, Tokens, and UX Patterns
 
 > **Scope:** Visual, spatial, typographic, color, material, and UX specifications for Windows 11 and Fluent 2, adapted for C# + XAML desktop apps (both stock Fluent and custom brand themes).
+>
+> **Related:** Scaffold a `4px`-grid WPF token starter via [`scaffold_windows_app.py`](../scripts/scaffold_windows_app.py) (`wpf-modern`). See [window-chrome-and-win11.md](window-chrome-and-win11.md) for DWM Mica/`WindowChrome` wiring and [compiler-traps-and-compat.md](compiler-traps-and-compat.md) for `AllowsTransparency`, `MC3072`, and Windows `22000`/`22621` build guards.
 
 ## Table of Contents
 

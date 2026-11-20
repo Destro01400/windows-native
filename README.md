@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Target: .NET 9 / 10 WPF, WinUI 3 & C++/WinRT](https://img.shields.io/badge/Target-.NET%209%2F10%20WPF%20%7C%20WinUI%203%20%7C%20C%2B%2B%2FWinRT-512BD4.svg)](#)
 
-An agent skill for full-lifecycle **native Windows 10/11 desktop application engineering** across **WPF (`.NET 9/10`)**, **WinUI 3 (`Windows App SDK` + NativeAOT)**, **C++/WinRT**, and **modern Win32/DWM/CsWin32**—covering architecture, OS interop, security, packaging, code signing, auto-updates, Fluent 2 UI/motion, diagnostics, and a zero-dependency Python static auditor.
+An agent skill for full-lifecycle **native Windows 10/11 desktop application engineering** across **WPF (`.NET 9/10`)**, **WinUI 3 (`Windows App SDK` + NativeAOT)**, **C++/WinRT**, and **modern Win32/DWM/CsWin32**. It ships **15 reference guides**, **3 compile-verified starter templates** with a CLI scaffolder, and a zero-dependency **Python static auditor with SARIF 2.1.0 output** for GitHub Code Scanning.
 
 *(Versão em Português abaixo / [Portuguese README](#versão-em-português-br))*
 
@@ -11,29 +11,31 @@ An agent skill for full-lifecycle **native Windows 10/11 desktop application eng
 
 ## What This Skill Covers
 
-- **App Architecture, DI, IPC & Lifecycle ([`references/app-architecture-and-lifecycle.md`](references/app-architecture-and-lifecycle.md))**
-  - `.NET 9/10` Generic Host (`Host.CreateApplicationBuilder`) in WPF (`StartupUri` removal) and WinUI 3 (`DISABLE_XAML_GENERATED_MAIN`), `CultureInfo`/`XmlLanguage` overrides, `IOptionsMonitor` vs. atomic `%LocalAppData%` JSON (`Flush(true)` + `File.Replace`) and SQLite WAL mode, `Local\`/`Global\` `Mutex` + `GC.KeepAlive` + `CurrentUserOnly` Named Pipes, custom URI protocol handlers (`HKCU\Software\Classes` vs. MSIX) with command-injection defense, global exception handlers, WER `RegisterApplicationRestart`/`Recovery`, and async `Serilog`.
-- **Windows OS Interop, CsWin32 & Security ([`references/windows-os-and-cswin32.md`](references/windows-os-and-cswin32.md))**
-  - `Microsoft.Windows.CsWin32` (`NativeMethods.txt`/`.json`, `SafeHandle`/`Lease()`, `AllowUnsafeBlocks` vs. `[LibraryImport]`), `.NET 8–10` Shell pickers (`OpenFileDialog`, `OpenFolderDialog`, WinUI 3 `InitializeWithWindow`, COM `IFileOpenDialog`), Drag-Drop UIPI rules, `RegisterHotKey`/`UnregisterHotKey` vs. `WH_KEYBOARD_LL` caveats, DPAPI (`CurrentUser` + entropy), Windows Credential Manager vs. `PasswordVault`, UAC/`app.manifest` (`PerMonitorV2`, `longPathAware`, UTF-8 `activeCodePage`), Registry `Run` + `StartupApproved`, `WM_DEVICECHANGE`, WASAPI/`NAudio` device traps, and leak-free `SystemEvents.PowerModeChanged`.
-- **WinUI 3, C# NativeAOT & C++/WinRT / Modern Win32 ([`references/winui3-and-cppwinrt-native.md`](references/winui3-and-cppwinrt-native.md))**
-  - **Part A (WinUI 3):** Packaged (MSIX) vs. unpackaged (`WindowsPackageType=None`) vs. `WindowsAppSDKSelfContained`, `AppInstance.FindOrRegisterForKey` single-instance redirection, `AppWindow`/TitleBar passthrough rects, `x:Bind`/`x:DefaultBindMode`/function bindings/`x:Phase`, `NavigationView`/`Frame.CacheSize`/`ConnectedAnimation`/`Composition`, `DispatcherQueue`, `ApplicationData` vs. `System.IO`, and **NativeAOT** (`PublishAot=true`, `CsWinRT >= 2.1.6`, `[GeneratedBindableCustomProperty]`).
-  - **Part B (C++/WinRT & Win32):** WPF vs. WinUI 3 NativeAOT vs. C++/WinRT decision matrix, C++20/CMake/vcpkg/`WIL`, C++/WinRT apartments/coroutines/`wil::resume_foreground`/`get_weak()`/MIDL 3.0, and pure Win32 `PerMonitorV2` + Direct2D/DirectComposition skeletons for `< 2 MB` utilities.
-- **Packaging, NativeAOT, Signing & Auto-Updates ([`references/packaging-signing-and-updates.md`](references/packaging-signing-and-updates.md))**
-  - Unpackaged vs. self-contained vs. single-file (`IncludeNativeLibrariesForSelfExtract`, `%TEMP%\.net` extraction, `AppContext.BaseDirectory` vs. `IL3000`), `PublishReadyToRun` vs. `PublishAot` (and why WPF fails `NETSDK1168`), MSIX vs. External Location **Sparse Packages** (`uap10:AllowExternalContent`), **WiX Toolset v5** (`<Files>`, `<netfx:DotNetCompatibilityCheck>`) vs. **Inno Setup 6** (per-user `{autopf}` + WebView2/`.NET` bootstrappers), **Velopack** (`VelopackApp.Build().Run()`, `UpdateManager`, delta `.nupkg`, `vpk pack`) vs. `.appinstaller`, and **Azure Artifact Signing** + RFC 3161 timestamping / SmartScreen engineering.
-- **Testing, Crash Dumps & Profiling ([`references/diagnostics-testing-and-profiling.md`](references/diagnostics-testing-and-profiling.md))**
-  - Headless `xUnit` ViewModel testing (`IDialogService`/`IDispatcherService`), `Xunit.StaFact` `[WpfFact]` & STA `Dispatcher` teardown, `FlaUI.UIA3` E2E tests (plus `windows-latest` CI session caveats), `RenderTargetBitmap` / `Verify.Wpf` visual snapshots, recursive-safe unhandled exception capture, WER `LocalDumps`, `Serilog.Sinks.Async` + `OpenTelemetry` flushing, `dotnet-counters`, `dotnet-gcdump`, `dotnet-dump`, `dotnet-trace`/PerfView, `WPR`/`WPA` UI delays, VS XAML Binding Failures, and Snoop.
-- **Windows 11 & Fluent 2 Design System ([`references/fluent-design-tokens-and-ux.md`](references/fluent-design-tokens-and-ux.md))**
-  - `4 epx` grid alignment across 10 DPI scaling plateaus (`100%`–`400%`), spacing ramp, breakpoints, Windows 11 type ramp, Light/Dark/High-Contrast tokens, WCAG 2.1 contrast math, concentric radii, Mica/Acrylic/Smoke layering, `Segoe Fluent Icons`, Wait UX, `InfoBar`/`ContentDialog`/`SettingsCard`, and dual-stroke focus visuals.
-- **Native Windows 11 Integration & DWM ([`references/window-chrome-and-win11.md`](references/window-chrome-and-win11.md))**
-  - `WindowChrome` custom title bars without `AllowsTransparency="True"`, `dwmapi.dll` (`DWMWA_USE_IMMERSIVE_DARK_MODE`, `DWMWA_WINDOW_CORNER_PREFERENCE`, `DWMWA_BORDER_COLOR`, `DWMWA_SYSTEMBACKDROP_TYPE`), complete **Snap Layouts (`HTMAXBUTTON`)**, DPI-scaled maximized bounds + auto-hide taskbar fix, live theme/accent/`TextScaleFactor` sync, `.NET 9/10` `ThemeMode`, and Windows Shell extras.
-- **Motion Design & WPF Animations ([`references/motion-and-animations.md`](references/motion-and-animations.md))**
-  - Fluent 2 timing (`83/167/250/333 ms`) & `KeySpline`s, `VisualStateManager`, `FillBehavior.HoldEnd` traps, frozen-brush hover crossfades, iGPU optimization, reduced motion (`SystemParameters.ClientAreaAnimation`), and `dt`-normalized `CompositionTarget.Rendering` visualizers.
-- **XAML Architecture, Performance & Accessibility ([`references/xaml-architecture-and-quality.md`](references/xaml-architecture-and-quality.md))**
-  - Layered `ResourceDictionary` tokens, `StaticResource` vs. `DynamicResource`, `CommunityToolkit.Mvvm` 8.4 (`partial` properties), `20–30 Hz` streaming batching, `VirtualizingStackPanel`, `Markdig` vs. `FlowDocument` cost, memory leaks, UI Automation (`AutomationProperties`, `LiveRegionChanged`, `AutomationPeer`), and localization.
-- **Custom Brand Theming ([`references/custom-brand-theming.md`](references/custom-brand-theming.md))**
-  - Adapting Windows 11 standards to distinct custom brand palettes (embedded fonts + fallback chains, WCAG badge fixes, styling all built-in controls, opaque vs. translucent chrome, frozen resource caching).
-- **Automated Static Windows App Auditor ([`scripts/audit_windows_app.py`](scripts/audit_windows_app.py) & [`scripts/audit_wpf_ui.py`](scripts/audit_wpf_ui.py))**
-  - Scans `.csproj`, `*.manifest`, `*.xaml`, and `*.cs` for packaging traps (`NETSDK1168`, `AllowUnsafeBlocks`, `Mvvm < 8.4.2`), manifest issues (`PerMonitorV2`, `supportedOS`, `requireAdministrator`), C# lifecycle/security bugs (`Mutex` `GC.KeepAlive`, `SystemEvents` `-=`, `HttpClient`, `async void`, `LocalMachine` DPAPI, unvalidated `UseShellExecute`, unmatched `RegisterHotKey`), WCAG contrast, `po:Freeze`, virtualization blockers, animation leaks, and UIA gaps. Supports `--ui-only`, `--strict`, and `--json`. (`audit_wpf_ui.py` remains as a backwards-compatible UI-only CLI wrapper.)
+| Area | Guide |
+|---|---|
+| App architecture, Generic Host DI, atomic persistence, single-instance IPC, URI protocols, crash recovery | [`app-architecture-and-lifecycle.md`](references/app-architecture-and-lifecycle.md) |
+| CsWin32, Shell pickers, hotkeys, DPAPI / Credential Manager, UAC manifests, hardware/audio/power events | [`windows-os-and-cswin32.md`](references/windows-os-and-cswin32.md) |
+| WinUI 3 (packaged/unpackaged, `AppWindow`, `x:Bind`, NativeAOT) and C++/WinRT / Win32 + Direct2D/DirectComposition | [`winui3-and-cppwinrt-native.md`](references/winui3-and-cppwinrt-native.md) |
+| Publishing (R2R/AOT/single-file), MSIX + Sparse Packages, WiX v5, Inno Setup 6, Velopack, Azure Artifact Signing, SmartScreen | [`packaging-signing-and-updates.md`](references/packaging-signing-and-updates.md) |
+| Testing pyramid, FlaUI, snapshots, WER `LocalDumps`, OpenTelemetry, `dotnet-counters`/`gcdump`/`dump`, WPR/WPA | [`diagnostics-testing-and-profiling.md`](references/diagnostics-testing-and-profiling.md) |
+| WebView2 hybrid apps: Evergreen vs Fixed runtime, `UserDataFolder`, virtual host mapping, typed messaging, lockdown, `TrySuspendAsync` | [`webview2-and-hybrid-apps.md`](references/webview2-and-hybrid-apps.md) |
+| Windows Services (Session 0), gRPC over Named Pipes, `PipeSecurity` ACLs, framing, ring buffers, `sc.exe failure`, tray watchdog | [`background-services-and-ipc.md`](references/background-services-and-ipc.md) |
+| GPU rendering ladder, Windows Graphics Capture, WASAPI, HID/Serial/BLE, DirectML, `Microsoft.Windows.AI` | [`graphics-media-and-windows-ai.md`](references/graphics-media-and-windows-ai.md) |
+| DLL hijack defense, Windows Hello, OAuth 2.0 PKCE, proxy/TLS hygiene, AppLocker/WDAC, SBOM, deterministic builds | [`security-hardening-and-enterprise.md`](references/security-hardening-and-enterprise.md) |
+| Verified compiler/runtime traps (`MC3072`, `NETSDK1168`, `CS9248`, `SYSLIB1062`, `PInvoke001/017`, `C00CE014`, ...) + Windows build matrix (`19041`-`26100`) | [`compiler-traps-and-compat.md`](references/compiler-traps-and-compat.md) |
+| Fluent 2 grid, type ramp, color tokens, WCAG contrast, materials, Wait UX | [`fluent-design-tokens-and-ux.md`](references/fluent-design-tokens-and-ux.md) |
+| `WindowChrome`, DWM, Snap Layouts (`HTMAXBUTTON`), `PerMonitorV2` DPI, `ThemeMode` | [`window-chrome-and-win11.md`](references/window-chrome-and-win11.md) |
+| Motion curves, `KeySpline`, `VisualStateManager`, `CompositionTarget.Rendering`, iGPU performance | [`motion-and-animations.md`](references/motion-and-animations.md) |
+| Layered XAML tokens, `CommunityToolkit.Mvvm` 8.4, virtualization, streaming perf, UI Automation | [`xaml-architecture-and-quality.md`](references/xaml-architecture-and-quality.md) |
+| Custom brand themes without Aero leaks, WCAG-safe badges, frozen resource caching | [`custom-brand-theming.md`](references/custom-brand-theming.md) |
+
+### Starter Templates (`assets/templates/`)
+
+| Template | Stack |
+|---|---|
+| `wpf-modern` | `.NET 10` WPF, Generic Host DI, `WindowChrome` + Snap Layouts (`HTMAXBUTTON`), CsWin32, `MotionSettings`, WCAG AA tokens, `PublishReadyToRun` |
+| `winui3-aot` | `.NET 10` WinUI 3, Windows App SDK 1.7, `PublishAot`, `AppInstance` single-instance, custom `TitleBar` + Mica, compiled `x:Bind` |
+| `cppwinrt-dcomp` | C++20 + CMake, C++/WinRT, Direct2D + DirectComposition, `PerMonitorV2`, `SetDefaultDllDirectories` |
 
 ---
 
@@ -41,24 +43,37 @@ An agent skill for full-lifecycle **native Windows 10/11 desktop application eng
 
 ```text
 windows-native/
-├── SKILL.md                                         # Core instructions & progressive-disclosure routing
+├── SKILL.md                                         # Core instructions, decision tree & routing table
 ├── README.md                                        # Documentation (EN / PT-BR)
 ├── LICENSE                                          # MIT License
 ├── .gitignore
+├── assets/
+│   └── templates/
+│       ├── wpf-modern/                              # WPF .NET 10 starter (manifest, chrome, tokens, motion, CsWin32)
+│       ├── winui3-aot/                              # WinUI 3 + NativeAOT starter (Program.cs, TitleBar, Mica)
+│       └── cppwinrt-dcomp/                          # C++/WinRT + Direct2D/DirectComposition starter (CMake)
 ├── references/
 │   ├── app-architecture-and-lifecycle.md            # Generic Host DI, persistence, IPC, URI protocols, crash recovery
 │   ├── windows-os-and-cswin32.md                    # CsWin32, Shell pickers, hotkeys, DPAPI/CredMan, manifest, hardware/power
-│   ├── winui3-and-cppwinrt-native.md                # WinUI 3 (.NET + NativeAOT) & C++/WinRT / modern Win32 + Direct2D
+│   ├── winui3-and-cppwinrt-native.md                # WinUI 3 (.NET + NativeAOT) & C++/WinRT / modern Win32
 │   ├── packaging-signing-and-updates.md             # Publish/SingleFile/R2R/AOT, MSIX/Sparse, WiX v5/Inno 6, Velopack, signing
 │   ├── diagnostics-testing-and-profiling.md         # xUnit/StaFact/FlaUI, WER LocalDumps, Serilog/OTel, dotnet-dump/WPR/WPA
+│   ├── webview2-and-hybrid-apps.md                  # WebView2 runtime, UserDataFolder, messaging, lockdown, lifecycle
+│   ├── background-services-and-ipc.md               # Session 0, WindowsServices, gRPC over pipes, PipeSecurity, watchdog
+│   ├── graphics-media-and-windows-ai.md             # GPU ladder, Graphics Capture, WASAPI, devices, DirectML/Windows AI
+│   ├── security-hardening-and-enterprise.md         # DLL hijack, Hello, PKCE, proxy/TLS, WDAC, SBOM
+│   ├── compiler-traps-and-compat.md                 # Compiler/runtime trap lookup + Windows 10/11 build matrix
 │   ├── fluent-design-tokens-and-ux.md               # Windows 11 / Fluent 2 tokens, 4px grid, typography, contrast, UX
-│   ├── window-chrome-and-win11.md                   # WindowChrome, DWM, Snap Layouts (HTMAXBUTTON), DPI, ThemeMode
+│   ├── window-chrome-and-win11.md                   # WindowChrome, DWM, Snap Layouts, DPI, ThemeMode
 │   ├── motion-and-animations.md                     # Fluent curves, KeySpline, VSM, CompositionTarget, iGPU perf
 │   ├── xaml-architecture-and-quality.md             # Layered tokens, Mvvm 8.4, virtualization, streaming, UIA
 │   └── custom-brand-theming.md                      # Custom palettes, embedded fonts, control coverage, frozen cache
 └── scripts/
-    ├── audit_windows_app.py                         # Zero-dependency Python auditor (.csproj, manifest, C#, XAML/UI)
-    └── audit_wpf_ui.py                              # Backwards-compatible UI-only CLI wrapper (--ui-only mode)
+    ├── scaffold_windows_app.py                      # Template scaffolder (--list/--template/--name/--out/--namespace/--force)
+    ├── audit_windows_app.py                         # Static auditor (--ui-only/--strict/--json/--sarif)
+    ├── audit_wpf_ui.py                              # Backwards-compatible UI-only wrapper
+    ├── test_audit_windows_app.py                    # Auditor unit tests (unittest)
+    └── test_scaffold.py                             # Scaffolder unit tests (unittest)
 ```
 
 ---
@@ -84,19 +99,53 @@ git clone https://github.com/Destro01400/windows-native.git .agents/skills/windo
 git clone https://github.com/Destro01400/windows-native.git .opencode/skills/windows-native
 ```
 
-### Running the Static Windows App Auditor
+## Usage
+
+### Scaffold a starter app
 
 ```bash
-# Full audit (.csproj + app.manifest + C# lifecycle/security + XAML/UI)
-python scripts/audit_windows_app.py path/to/YourWindowsApp
+python scripts/scaffold_windows_app.py --list
+python scripts/scaffold_windows_app.py --template wpf-modern --name Contoso --out ./Contoso
+python scripts/scaffold_windows_app.py --template winui3-aot --name Contoso --namespace Contoso.App --out ./ContosoWinUI
+python scripts/scaffold_windows_app.py --template cppwinrt-dcomp --name ContosoTool --out ./ContosoTool
+```
 
-# UI/XAML-only mode, JSON output, or CI strict mode (exits 1 on ERROR/WARN)
-python scripts/audit_windows_app.py path/to/YourWindowsApp --ui-only
-python scripts/audit_windows_app.py path/to/YourWindowsApp --json
-python scripts/audit_windows_app.py path/to/YourWindowsApp --strict
+### Audit an app
 
-# Legacy backwards-compatible WPF UI entrypoint (delegates to audit_windows_app.py --ui-only)
-python scripts/audit_wpf_ui.py path/to/YourWpfApp --strict
+```bash
+python scripts/audit_windows_app.py path/to/YourWindowsApp                # human-readable findings
+python scripts/audit_windows_app.py path/to/YourWindowsApp --ui-only      # XAML/UI checks only
+python scripts/audit_windows_app.py path/to/YourWindowsApp --json         # tooling output
+python scripts/audit_windows_app.py path/to/YourWindowsApp --strict       # exit 1 on ERROR/WARN
+python scripts/audit_windows_app.py path/to/YourWindowsApp --sarif        # SARIF 2.1.0 (excludes --json)
+```
+
+### GitHub Code Scanning (CI)
+
+```yaml
+# .github/workflows/windows-native-audit.yml
+name: windows-native-audit
+on: [push, pull_request]
+jobs:
+  audit:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Audit (SARIF)
+        run: python .agent/skills/windows-native/scripts/audit_windows_app.py . --sarif > audit.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        with: { sarif_file: audit.sarif }
+```
+
+### Run the unit tests
+
+```bash
+python -B -m unittest discover -s scripts -p "test_*.py" -v
 ```
 
 ---
@@ -105,21 +154,22 @@ python scripts/audit_wpf_ui.py path/to/YourWpfApp --strict
 
 ## Versão em Português (BR)
 
-Skill completa de engenharia para **aplicativos nativos do Windows 10/11** em **C#, XAML e C++** (**WPF no .NET 9/10**, **WinUI 3 / Windows App SDK + NativeAOT**, **C++/WinRT** e **Win32/DWM/CsWin32**), acompanhada de um auditor estático em Python sem dependências externas.
+Skill completa de engenharia para **aplicativos nativos do Windows 10/11** em **C#, XAML e C++** (**WPF no .NET 9/10**, **WinUI 3 / Windows App SDK + NativeAOT**, **C++/WinRT** e **Win32/DWM/CsWin32**). Inclui **15 guias de referência**, **3 templates iniciais com compilação verificada** + gerador por linha de comando, e um **auditor estático em Python** (sem dependências externas) com saída **SARIF 2.1.0** para o GitHub Code Scanning.
 
 ### O que esta Skill inclui
 
-- **Arquitetura, DI, IPC e ciclo de vida ([`app-architecture-and-lifecycle.md`](references/app-architecture-and-lifecycle.md)):** Generic Host no WPF e WinUI 3, remoção de `StartupUri`, escrita atômica em `%LocalAppData%` + SQLite WAL, instância única com `Mutex` + `GC.KeepAlive` + Named Pipes (`CurrentUserOnly`), protocolos URI (`HKCU` vs. MSIX) protegidos contra injeção, captura de falhas, WER Restart/Recovery e logs `Serilog` assíncronos.
-- **Interop de SO, CsWin32 e segurança ([`windows-os-and-cswin32.md`](references/windows-os-and-cswin32.md)):** `Microsoft.Windows.CsWin32` (`NativeMethods.txt`/`.json`, `SafeHandle`/`Lease()`, `[LibraryImport]`), seletores nativos (`OpenFolderDialog`, `IFileOpenDialog`), `RegisterHotKey` vs. `WH_KEYBOARD_LL`, DPAPI `CurrentUser`, Credential Manager vs. `PasswordVault`, UAC/`app.manifest` (`PerMonitorV2`, `longPathAware`, UTF-8), eventos de hardware/áudio/energia sem vazamentos.
-- **WinUI 3, C# NativeAOT e C++/WinRT / Win32 moderno ([`winui3-and-cppwinrt-native.md`](references/winui3-and-cppwinrt-native.md)):** empacotado vs. desempacotado (`WindowsPackageType=None`), redirecionamento de instância única, `AppWindow` e barra de título, `x:Bind`/`x:Phase`, `DispatcherQueue`, NativeAOT com `CsWinRT >= 2.1.6`, C++20 + WIL + corrotinas (`get_weak()`), e esqueletos Win32 + Direct2D/DirectComposition (`< 2 MB`).
-- **Empacotamento, NativeAOT, assinatura e atualizações ([`packaging-signing-and-updates.md`](references/packaging-signing-and-updates.md)):** single-file WPF (`IncludeNativeLibrariesForSelfExtract`, `AppContext.BaseDirectory`), ReadyToRun vs. NativeAOT (`NETSDK1168` no WPF), MSIX e **Sparse Packages** (`uap10:AllowExternalContent`), **WiX v5** vs. **Inno Setup 6** (por usuário + bootstrapper WebView2/`.NET`), **Velopack** vs. `.appinstaller`, **Azure Artifact Signing** + timestamp RFC 3161 e mitigação de SmartScreen.
-- **Testes, crash dumps e profiling ([`diagnostics-testing-and-profiling.md`](references/diagnostics-testing-and-profiling.md)):** pirâmide de testes (`xUnit`, `Xunit.StaFact` `[WpfFact]`, `FlaUI.UIA3` e ressalvas de CI), snapshots `RenderTargetBitmap`, WER `LocalDumps`, `Serilog.Sinks.Async`/`OpenTelemetry`, `dotnet-counters`, `dotnet-gcdump`, `dotnet-dump`, PerfView, `WPR`/`WPA` e Snoop.
-- **Design Windows 11 / Fluent 2 ([`fluent-design-tokens-and-ux.md`](references/fluent-design-tokens-and-ux.md)):** grade de `4 px`, escala tipográfica, contraste WCAG AA (`4,5:1`), raios concêntricos, Mica/Acrylic/Smoke, ícones, diálogos/`InfoBar`, telas de espera e foco por teclado.
-- **Integração nativa Windows 11 e DWM ([`window-chrome-and-win11.md`](references/window-chrome-and-win11.md)):** `WindowChrome` sem `AllowsTransparency="True"`, `DwmSetWindowAttribute`, **Snap Layouts (`HTMAXBUTTON`)**, janela maximizada com DPI, troca de tema em tempo real e `ThemeMode` (.NET 9/10).
-- **Movimento e animações ([`motion-and-animations.md`](references/motion-and-animations.md)):** durações (`83/167/250/333 ms`) e `KeySpline`s Fluent, `VisualStateManager`, prevenção de travamentos em iGPU, redução de movimento e `CompositionTarget.Rendering` com `dt` real.
-- **Arquitetura XAML, desempenho e acessibilidade ([`xaml-architecture-and-quality.md`](references/xaml-architecture-and-quality.md)):** `ResourceDictionary` em camadas, `CommunityToolkit.Mvvm` 8.4, virtualização de listas, streaming sem reconstrução `O(N²)`, vazamentos de memória e leitores de tela (`AutomationProperties` e `LiveRegionChanged`).
-- **Temas próprios de marca ([`custom-brand-theming.md`](references/custom-brand-theming.md)):** personalidade visual própria mantendo contraste WCAG, controles nativos sem estilo Aero, fontes embutidas e cache congelado.
-- **Auditor estático ([`scripts/audit_windows_app.py`](scripts/audit_windows_app.py) e [`scripts/audit_wpf_ui.py`](scripts/audit_wpf_ui.py)):** audita `.csproj`, `app.manifest`, ciclo de vida/segurança em C# e regras WPF/XAML (`--ui-only`, `--strict`, `--json`).
+- **Arquitetura, DI, IPC e ciclo de vida ([`app-architecture-and-lifecycle.md`](references/app-architecture-and-lifecycle.md)):** Generic Host, escrita atômica em `%LocalAppData%`, SQLite WAL, instância única (`Mutex` + `GC.KeepAlive` + Named Pipes `CurrentUserOnly`), protocolos URI, captura de falhas e logs assíncronos.
+- **Interop de SO, CsWin32 e segurança ([`windows-os-and-cswin32.md`](references/windows-os-and-cswin32.md)):** `CsWin32` com `SafeHandle`, seletores nativos, `RegisterHotKey`, DPAPI `CurrentUser`, Credential Manager, `app.manifest`, eventos de hardware/áudio/energia.
+- **WinUI 3, NativeAOT e C++/WinRT ([`winui3-and-cppwinrt-native.md`](references/winui3-and-cppwinrt-native.md)):** empacotado vs. desempacotado, `AppWindow`, `x:Bind`, `PublishAot`, C++20 + WIL, Direct2D/DirectComposition.
+- **Empacotamento, assinatura e atualizações ([`packaging-signing-and-updates.md`](references/packaging-signing-and-updates.md)):** single-file, ReadyToRun vs. NativeAOT, MSIX e Sparse Packages, WiX v5, Inno Setup 6, Velopack, Azure Artifact Signing, SmartScreen.
+- **Testes e diagnóstico ([`diagnostics-testing-and-profiling.md`](references/diagnostics-testing-and-profiling.md)):** xUnit, `Xunit.StaFact`, FlaUI, WER `LocalDumps`, OpenTelemetry, `dotnet-counters`/`gcdump`, WPR/WPA.
+- **WebView2 e apps híbridos ([`webview2-and-hybrid-apps.md`](references/webview2-and-hybrid-apps.md)):** runtime Evergreen vs. Fixed, `UserDataFolder` explícita, mapeamento de host virtual, mensagens JSON tipadas, bloqueio em Release, `TrySuspendAsync`.
+- **Serviços em segundo plano e IPC ([`background-services-and-ipc.md`](references/background-services-and-ipc.md)):** isolamento da Sessão 0, `AddWindowsService`, gRPC sobre Named Pipes, ACLs `PipeSecurity`, `MemoryMappedFile`, `sc.exe failure`, watchdog na bandeja.
+- **Gráficos, mídia e IA do Windows ([`graphics-media-and-windows-ai.md`](references/graphics-media-and-windows-ai.md)):** escada de renderização GPU, captura de tela, WASAPI, HID/Serial/BLE, DirectML, `Microsoft.Windows.AI`.
+- **Segurança e ambiente corporativo ([`security-hardening-and-enterprise.md`](references/security-hardening-and-enterprise.md)):** defesa contra DLL hijacking, Windows Hello, OAuth 2.0 PKCE, proxy/TLS, AppLocker/WDAC, SBOM, builds determinísticos.
+- **Erros de compilador e compatibilidade ([`compiler-traps-and-compat.md`](references/compiler-traps-and-compat.md)):** tabela rápida (`MC3072`, `NETSDK1168`, `CS9248`, `SYSLIB1062`, `PInvoke001/017`, `C00CE014`, `IL3000`, `WPF0001`) e matriz de builds do Windows (`19041` a `26100`).
+- **Design e UI ([`fluent-design-tokens-and-ux.md`](references/fluent-design-tokens-and-ux.md), [`window-chrome-and-win11.md`](references/window-chrome-and-win11.md), [`motion-and-animations.md`](references/motion-and-animations.md), [`xaml-architecture-and-quality.md`](references/xaml-architecture-and-quality.md), [`custom-brand-theming.md`](references/custom-brand-theming.md)):** grade de 4 px, contraste WCAG, `WindowChrome` + Snap Layouts, DPI `PerMonitorV2`, animações Fluent, virtualização, acessibilidade e temas de marca.
+- **Templates e scripts:** `assets/templates/` (`wpf-modern`, `winui3-aot`, `cppwinrt-dcomp`), [`scaffold_windows_app.py`](scripts/scaffold_windows_app.py), [`audit_windows_app.py`](scripts/audit_windows_app.py), [`audit_wpf_ui.py`](scripts/audit_wpf_ui.py) e testes `test_*.py`.
 
 ### Como instalar no seu projeto
 
@@ -140,11 +190,18 @@ git clone https://github.com/Destro01400/windows-native.git .agents/skills/windo
 git clone https://github.com/Destro01400/windows-native.git .opencode/skills/windows-native
 ```
 
-Para auditar qualquer projeto Windows localmente:
+### Como usar
 
 ```bash
+# Criar um app inicial a partir de um template
+python scripts/scaffold_windows_app.py --template wpf-modern --name MeuApp --out ./MeuApp
+
+# Auditar um projeto (use --strict no CI e --sarif para o GitHub Code Scanning)
 python scripts/audit_windows_app.py caminho/do/seu-app-windows --strict
+python scripts/audit_windows_app.py caminho/do/seu-app-windows --sarif > audit.sarif
 ```
+
+O exemplo de workflow do GitHub Actions acima (seção *GitHub Code Scanning*) funciona igualmente para projetos em português.
 
 ---
 

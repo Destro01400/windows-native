@@ -1,0 +1,9 @@
+// Win32 APIs generated via Microsoft.Windows.CsWin32 (use // comments only, never #)
+DwmSetWindowAttribute
+DWMWINDOWATTRIBUTE
+DWM_WINDOW_CORNER_PREFERENCE
+GetSystemMetricsForDpi
+SYSTEM_METRICS_INDEX
+TrackMouseEvent
+TRACKMOUSEEVENT
+TRACKMOUSEEVENT_FLAGS

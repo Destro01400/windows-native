@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static auditor for Windows desktop apps (WPF, WinUI 3, .csproj, app.manifest, C# lifecycle & security).
+"""Static auditor for Windows desktop apps (WPF, WinUI 3, C++/WinRT, .csproj, app.manifest, C# & WebView2).
 
 UI / XAML Checks (also runnable alone via --ui-only or audit_wpf_ui.py):
   1. WCAG 2.1 contrast ratios for palette brush pairs in ResourceDictionaries.
@@ -23,23 +23,30 @@ Windows App Engineering Checks (default full mode):
   12. [C# Lifecycle & Security] new Mutex without GC.KeepAlive/using, SystemEvents += without -=,
       new HttpClient() inside methods/loops, async void outside event handlers/lifecycle overrides,
       ProtectedData.Protect(LocalMachine), unvalidated/interpolated Process.Start(UseShellExecute=true),
-      RegisterHotKey without matching UnregisterHotKey.
+      RegisterHotKey without matching UnregisterHotKey, NamedPipeServerStream without CurrentUserOnly/PipeSecurity,
+      bypassed ServerCertificateCustomValidationCallback outside #if DEBUG, raw LoadLibrary P/Invoke.
+  13. [WebView2 & WinUI 3] EnsureCoreWebView2Async() without explicit environment/UserDataFolder,
+      AddHostObjectToScript surface note, AreDevToolsEnabled = true outside #if DEBUG, Window.Current in WinUI 3,
+      ApplicationData.Current in unpackaged projects without identity guard.
+  14. [C++ / C++/WinRT] co_await in Class::Method(...) without get_weak()/get_strong(), raw LoadLibraryA/W
+      without LoadLibraryEx + LOAD_LIBRARY_SEARCH_SYSTEM32, AdjustWindowRect instead of AdjustWindowRectExForDpi.
 
 Usage:
-  python audit_windows_app.py <path-to-project-dir> [--ui-only] [--strict] [--json]
+  python audit_windows_app.py <path-to-project-dir> [--ui-only] [--strict] [--json | --sarif]
 """
 
 from __future__ import annotations
 
 import argparse
 from dataclasses import asdict, dataclass
+import itertools
 import json
 import re
 import sys
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-IGNORE_DIRS = {"bin", "obj", ".git", ".vs", "packages", ".svn", "node_modules"}
+IGNORE_DIRS = {"bin", "obj", ".git", ".vs", "packages", ".svn", "node_modules", "CMakeFiles", "vcpkg_installed"}
 WIN10_11_SUPPORTED_OS_GUID = "{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"
 
 
@@ -110,6 +117,29 @@ def strip_cs_comments(text: str, blank_strings: bool = False) -> str:
                 i += 1
             continue
 
+        # C# 11+ raw string literal: """...""" or $"""..."""
+        if ch in ('"', "$"):
+            d_cnt = 0
+            while i + d_cnt < n and text[i + d_cnt] == "$":
+                d_cnt += 1
+            q_cnt = 0
+            while i + d_cnt + q_cnt < n and text[i + d_cnt + q_cnt] == '"':
+                q_cnt += 1
+            if q_cnt >= 3:
+                prefix_len = d_cnt + q_cnt
+                closing = '"' * q_cnt
+                out.append(" " * prefix_len if blank_strings else text[i : i + prefix_len])
+                i += prefix_len
+                while i < n:
+                    if text.startswith(closing, i):
+                        out.append(" " * q_cnt if blank_strings else closing)
+                        i += q_cnt
+                        break
+                    c = text[i]
+                    out.append("\n" if c == "\n" else (" " if blank_strings else c))
+                    i += 1
+                continue
+
         # Verbatim / interpolated verbatim string @"..." or $@"..." or @$"..."
         if (ch == "@" and nxt == '"') or (
             ch == "$" and nxt == "@" and i + 2 < n and text[i + 2] == '"'
@@ -170,6 +200,246 @@ def strip_cs_comments(text: str, blank_strings: bool = False) -> str:
         i += 1
 
     return "".join(out)
+
+
+def strip_cpp_comments(text: str, blank_strings: bool = False) -> str:
+    """Strip C++ // and /* */ comments (and optionally string/char contents) while preserving line numbers."""
+    out: list[str] = []
+    n = len(text)
+    i = 0
+
+    def _is_ident_char(c: str) -> bool:
+        return c.isalnum() or c == "_"
+
+    while i < n:
+        ch = text[i]
+        nxt = text[i + 1] if i + 1 < n else ""
+
+        # Line comment
+        if ch == "/" and nxt == "/":
+            out.append("  ")
+            i += 2
+            while i < n and text[i] != "\n":
+                out.append(" ")
+                i += 1
+            continue
+
+        # Block comment
+        if ch == "/" and nxt == "*":
+            out.append("  ")
+            i += 2
+            while i < n:
+                if text[i] == "*" and i + 1 < n and text[i + 1] == "/":
+                    out.append("  ")
+                    i += 2
+                    break
+                out.append("\n" if text[i] == "\n" else " ")
+                i += 1
+            continue
+
+        # Raw string literal: (u8|u|U|L)?R"delim(...)delim"
+        raw_prefix_len = 0
+        if i == 0 or not _is_ident_char(text[i - 1]):
+            for pref in ("u8R\"", "uR\"", "UR\"", "LR\"", "R\""):
+                if text.startswith(pref, i):
+                    raw_prefix_len = len(pref)
+                    break
+        if raw_prefix_len:
+            paren_idx = text.find("(", i + raw_prefix_len)
+            if paren_idx != -1 and (paren_idx - (i + raw_prefix_len)) <= 16:
+                delim = text[i + raw_prefix_len : paren_idx]
+                if not any(c.isspace() or c in ("\\", ")") for c in delim):
+                    closing = f"){delim}\""
+                    header = text[i : paren_idx + 1]
+                    out.append('"' + " " * (len(header) - 1) if blank_strings else header)
+                    i = paren_idx + 1
+                    while i < n:
+                        if text.startswith(closing, i):
+                            out.append(" " * (len(closing) - 1) + '"' if blank_strings else closing)
+                            i += len(closing)
+                            break
+                        c = text[i]
+                        out.append("\n" if c == "\n" else (" " if blank_strings else c))
+                        i += 1
+                    continue
+
+        # Regular / wide / UTF string literal: (u8|u|U|L)?"..."
+        str_prefix_len = 0
+        if ch == '"':
+            str_prefix_len = 1
+        elif i == 0 or not _is_ident_char(text[i - 1]):
+            for pref in ('u8"', 'u"', 'U"', 'L"'):
+                if text.startswith(pref, i):
+                    str_prefix_len = len(pref)
+                    break
+        if str_prefix_len:
+            out.append('"' + " " * (str_prefix_len - 1) if blank_strings else text[i : i + str_prefix_len])
+            i += str_prefix_len
+            while i < n:
+                c = text[i]
+                if c == "\\" and i + 1 < n:
+                    if text[i + 1] == "\n":
+                        out.append(" \n" if blank_strings else "\\\n")
+                    else:
+                        out.append("  " if blank_strings else text[i : i + 2])
+                    i += 2
+                    continue
+                if c == '"':
+                    out.append('"')
+                    i += 1
+                    break
+                out.append("\n" if c == "\n" else (" " if blank_strings else c))
+                i += 1
+            continue
+
+        # Char literal '...' (skip C++14 digit separators like 1'000 or 0xFF'FF)
+        if ch == "'":
+            prev_ch = text[i - 1] if i > 0 else ""
+            is_u8_pref = i >= 2 and text[i - 2 : i] == "u8" and (i == 2 or not _is_ident_char(text[i - 3]))
+            is_digit_sep = prev_ch in "0123456789abcdefABCDEF" and not is_u8_pref
+            if not is_digit_sep:
+                out.append(ch)
+                i += 1
+                while i < n:
+                    c = text[i]
+                    if c == "\\" and i + 1 < n:
+                        out.append("  " if blank_strings else text[i : i + 2])
+                        i += 2
+                        continue
+                    if c == "\n":
+                        out.append("\n")
+                        i += 1
+                        break
+                    out.append("'" if c == "'" else (" " if blank_strings else c))
+                    i += 1
+                    if c == "'":
+                        break
+                continue
+
+        out.append(ch)
+        i += 1
+
+    return "".join(out)
+
+
+def _eval_pp_expr(expr: str, env: dict[str, bool]) -> bool:
+    tokens = re.findall(r"&&|\|\||==|!=|!|\(|\)|[A-Za-z_]\w*", expr)
+    pos = 0
+
+    def parse_or() -> bool:
+        val = parse_and()
+        while pos < len(tokens) and tokens[pos] == "||":
+            _advance()
+            rhs = parse_and()
+            val = val or rhs
+        return val
+
+    def parse_and() -> bool:
+        val = parse_eq()
+        while pos < len(tokens) and tokens[pos] == "&&":
+            _advance()
+            rhs = parse_eq()
+            val = val and rhs
+        return val
+
+    def parse_eq() -> bool:
+        val = parse_unary()
+        while pos < len(tokens) and tokens[pos] in ("==", "!="):
+            op = tokens[pos]
+            _advance()
+            rhs = parse_unary()
+            val = (val == rhs) if op == "==" else (val != rhs)
+        return val
+
+    def parse_unary() -> bool:
+        if pos < len(tokens) and tokens[pos] == "!":
+            _advance()
+            return not parse_unary()
+        return parse_primary()
+
+    def parse_primary() -> bool:
+        if pos >= len(tokens):
+            raise ValueError("unexpected end")
+        tok = tokens[pos]
+        if tok == "(":
+            _advance()
+            val = parse_or()
+            if pos >= len(tokens) or tokens[pos] != ")":
+                raise ValueError("missing )")
+            _advance()
+            return val
+        _advance()
+        if tok == "true":
+            return True
+        if tok == "false":
+            return False
+        if re.fullmatch(r"[A-Za-z_]\w*", tok):
+            return env.get(tok, False)
+        raise ValueError(f"unexpected token {tok}")
+
+    def _advance() -> None:
+        nonlocal pos
+        pos += 1
+
+    result = parse_or()
+    if pos != len(tokens):
+        raise ValueError("trailing tokens")
+    return result
+
+
+def _can_run_without_debug(expr: str) -> bool:
+    syms = sorted({t for t in re.findall(r"[A-Za-z_]\w*", expr) if t not in ("DEBUG", "true", "false")})
+    if len(syms) > 6:
+        return True
+    try:
+        for combo in itertools.product((False, True), repeat=len(syms)):
+            env = dict(zip(syms, combo))
+            env["DEBUG"] = False
+            if _eval_pp_expr(expr, env):
+                return True
+        return False
+    except ValueError:
+        return True
+
+
+def _compute_debug_guarded_lines(code_only: str) -> set[int]:
+    """Return 1-based line numbers strictly gated behind #if DEBUG (never executed when DEBUG is undefined)."""
+    guarded: set[int] = set()
+    # Stack entries: (branch_exprs_seen_so_far, current_branch_can_run_in_release)
+    stack: list[tuple[list[str], bool]] = []
+
+    for idx, line in enumerate(code_only.splitlines(), 1):
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            m_if = re.match(r"^#\s*if\b(.*)$", stripped)
+            if m_if:
+                expr = m_if.group(1).strip() or "false"
+                runs_rel = _can_run_without_debug(expr)
+                stack.append(([expr], runs_rel))
+                continue
+            m_elif = re.match(r"^#\s*elif\b(.*)$", stripped)
+            if m_elif and stack:
+                prior, _ = stack[-1]
+                expr = m_elif.group(1).strip() or "false"
+                prior_or = " || ".join(f"({p})" for p in prior)
+                cond = f"!({prior_or}) && ({expr})"
+                runs_rel = _can_run_without_debug(cond)
+                stack[-1] = (prior + [expr], runs_rel)
+                continue
+            if re.match(r"^#\s*else\b", stripped) and stack:
+                prior, _ = stack[-1]
+                prior_or = " || ".join(f"({p})" for p in prior)
+                runs_rel = _can_run_without_debug(f"!({prior_or})")
+                stack[-1] = (prior, runs_rel)
+                continue
+            if re.match(r"^#\s*endif\b", stripped) and stack:
+                stack.pop()
+                continue
+
+        if any(not runs_rel for _, runs_rel in stack):
+            guarded.add(idx)
+
+    return guarded
 
 
 def parse_hex_color(hex_str: str) -> tuple[float, int, int, int] | None:
@@ -948,13 +1218,58 @@ def _is_extern_decl(lines: list[str], idx: int) -> bool:
     return bool(re.search(r"\[(?:DllImport|LibraryImport)\b|\bextern\b|\bstatic\s+partial\b", window))
 
 
-def audit_cs_engineering(f: Path, root: Path) -> list[Finding]:
+def _collect_unpackaged_project_dirs(csproj_files: list[Path]) -> set[Path]:
+    unpackaged: set[Path] = set()
+    for csproj in csproj_files:
+        try:
+            tree = ET.parse(csproj)
+        except ET.ParseError:
+            continue
+        for elem in tree.getroot().iter():
+            if _strip_xml_ns(elem.tag).lower() == "windowspackagetype":
+                if (elem.text or "").strip().lower() == "none":
+                    unpackaged.add(csproj.parent.resolve())
+                    break
+    return unpackaged
+
+
+def _cs_belongs_to_unpackaged_project(
+    cs_path: Path,
+    root: Path,
+    csproj_files: list[Path],
+    unpackaged_dirs: set[Path],
+) -> bool:
+    if not unpackaged_dirs:
+        return False
+    resolved = cs_path.resolve()
+    matching = [p for p in csproj_files if p.parent.resolve() == root.resolve() or p.parent.resolve() in resolved.parents]
+    if not matching:
+        return any(p.parent.resolve() in unpackaged_dirs for p in csproj_files)
+    # Closest .csproj ancestor owns the file
+    closest = max(matching, key=lambda p: len(p.parent.resolve().parts))
+    return closest.parent.resolve() in unpackaged_dirs
+
+
+def _has_webview2_creation_udf(cs_path: Path, code_only: str) -> bool:
+    if "CreationProperties" in code_only and "UserDataFolder" in code_only:
+        return True
+    if cs_path.name.lower().endswith(".xaml.cs"):
+        xaml_pair = cs_path.with_suffix("")
+        if xaml_pair.exists():
+            xaml_text = strip_xml_comments_preserve_lines(xaml_pair.read_text(encoding="utf-8", errors="replace"))
+            if "CreationProperties" in xaml_text and "UserDataFolder" in xaml_text:
+                return True
+    return False
+
+
+def audit_cs_engineering(f: Path, root: Path, is_unpackaged: bool = False) -> list[Finding]:
     rel = f.relative_to(root).as_posix()
     raw_text = f.read_text(encoding="utf-8", errors="replace")
     no_comments = strip_cs_comments(raw_text, blank_strings=False)
     code_only = strip_cs_comments(raw_text, blank_strings=True)
     code_lines = code_only.splitlines()
     text_lines = no_comments.splitlines()
+    debug_lines = _compute_debug_guarded_lines(code_only)
     findings: list[Finding] = []
 
     # 1. new Mutex(...) without GC.KeepAlive or using scope
@@ -1149,12 +1464,556 @@ def audit_cs_engineering(f: Path, root: Path) -> list[Finding]:
                     )
                 )
 
+    # 8. WebView2: EnsureCoreWebView2Async() without explicit CoreWebView2Environment / UserDataFolder
+    if not _has_webview2_creation_udf(f, code_only):
+        for m in re.finditer(r"\bEnsureCoreWebView2Async\s*\(\s*(?:null\s*)?\)", code_only):
+            line_no = code_only[: m.start()].count("\n") + 1
+            findings.append(
+                Finding(
+                    "WARN",
+                    "WEBVIEW2",
+                    rel,
+                    line_no,
+                    "EnsureCoreWebView2Async() without explicit CoreWebView2Environment / UserDataFolder under %LocalAppData% fails under Program Files",
+                )
+            )
+
+    # 9. WebView2: AddHostObjectToScript security surface reminder
+    for m in re.finditer(r"\bAddHostObjectToScript\s*\(", code_only):
+        line_no = code_only[: m.start()].count("\n") + 1
+        findings.append(
+            Finding(
+                "INFO",
+                "WEBVIEW2",
+                rel,
+                line_no,
+                "AddHostObjectToScript exposes a .NET/COM host object to script; review origin allowlists or prefer typed PostWebMessageAsJson/WebMessageReceived",
+            )
+        )
+
+    # 10. WebView2: AreDevToolsEnabled = true outside #if DEBUG
+    for m in re.finditer(r"\bAreDevToolsEnabled\s*(?<![=!<>])=(?!=)\s*true\b", code_only):
+        line_no = code_only[: m.start()].count("\n") + 1
+        if line_no not in debug_lines:
+            findings.append(
+                Finding(
+                    "WARN",
+                    "WEBVIEW2",
+                    rel,
+                    line_no,
+                    "AreDevToolsEnabled = true outside #if DEBUG leaves browser DevTools enabled in Release builds",
+                )
+            )
+
+    # 11. WinUI 3: Window.Current is always null in desktop WinUI 3
+    if "Microsoft.UI.Xaml" in code_only:
+        for m in re.finditer(r"(?<!Windows\.)\bWindow\s*\.\s*Current\b", code_only):
+            line_no = code_only[: m.start()].count("\n") + 1
+            findings.append(
+                Finding(
+                    "ERROR",
+                    "WINUI3",
+                    rel,
+                    line_no,
+                    "Window.Current is always null in WinUI 3 desktop apps; keep an explicit Window / XamlRoot reference instead",
+                )
+            )
+
+    # 12. WinUI 3: ApplicationData.Current in unpackaged projects without identity guard
+    if is_unpackaged and "Package.Current" not in code_only and "GetCurrentPackageFullName" not in code_only:
+        for m in re.finditer(r"\bApplicationData\s*\.\s*Current\b", code_only):
+            line_no = code_only[: m.start()].count("\n") + 1
+            findings.append(
+                Finding(
+                    "WARN",
+                    "WINUI3",
+                    rel,
+                    line_no,
+                    "ApplicationData.Current throws in unpackaged projects (<WindowsPackageType>None</WindowsPackageType>) without a Package.Current / GetCurrentPackageFullName identity guard",
+                )
+            )
+
+    # 13. Security: new NamedPipeServerStream(...) without PipeOptions.CurrentUserOnly or PipeSecurity
+    for m in re.finditer(r"\bnew\s+(?:System\.IO\.Pipes\.)?NamedPipeServerStream\s*\(", code_only):
+        line_no = code_only[: m.start()].count("\n") + 1
+        parsed = _scan_balanced_cs(code_only, m.end() - 1, "(", ")")
+        args_str = parsed[0] if parsed is not None else code_only[m.end() : m.end() + 300]
+        has_acl = ("CurrentUserOnly" in args_str) or ("PipeSecurity" in args_str)
+        if not has_acl:
+            ctx_before = "\n".join(code_lines[max(0, line_no - 16) : line_no])
+            acl_vars = set(
+                re.findall(r"\bPipeSecurity\s+([A-Za-z_]\w*)", ctx_before)
+                + re.findall(r"\b([A-Za-z_]\w*)\s*=\s*new\s+(?:System\.IO\.Pipes\.)?PipeSecurity\b", ctx_before)
+                + re.findall(r"\b([A-Za-z_]\w*)\s*=[^;\n]*\bCurrentUserOnly\b", ctx_before)
+            )
+            has_acl = any(re.search(rf"\b{re.escape(v)}\b", args_str) for v in acl_vars)
+        if not has_acl:
+            findings.append(
+                Finding(
+                    "WARN",
+                    "SECURITY",
+                    rel,
+                    line_no,
+                    "new NamedPipeServerStream(...) without PipeOptions.CurrentUserOnly or PipeSecurity allows arbitrary local users/processes to connect",
+                )
+            )
+
+    # 14. Security: ServerCertificateCustomValidationCallback returning true / DangerousAcceptAnyServerCertificateValidator outside #if DEBUG
+    reported_tls_lines: set[int] = set()
+    tls_cb_re = re.compile(
+        r"\bServerCertificateCustomValidationCallback\s*=\s*"
+        r"(?:(?:\([^)]*\)|[A-Za-z_]\w*)\s*=>\s*(?:\{\s*return\s+true\s*;\s*\}|true\b)"
+        r"|delegate(?:\s*\([^)]*\))?\s*\{\s*return\s+true\s*;\s*\})"
+    )
+    for m in tls_cb_re.finditer(code_only):
+        line_no = code_only[: m.start()].count("\n") + 1
+        if line_no not in debug_lines and line_no not in reported_tls_lines:
+            reported_tls_lines.add(line_no)
+            findings.append(
+                Finding(
+                    "ERROR",
+                    "SECURITY",
+                    rel,
+                    line_no,
+                    "ServerCertificateCustomValidationCallback unconditionally returns true outside #if DEBUG (disables TLS certificate validation)",
+                )
+            )
+    for m in re.finditer(r"\bDangerousAcceptAnyServerCertificateValidator\b", code_only):
+        line_no = code_only[: m.start()].count("\n") + 1
+        if line_no not in debug_lines and line_no not in reported_tls_lines:
+            reported_tls_lines.add(line_no)
+            findings.append(
+                Finding(
+                    "ERROR",
+                    "SECURITY",
+                    rel,
+                    line_no,
+                    "DangerousAcceptAnyServerCertificateValidator used outside #if DEBUG (disables TLS certificate validation)",
+                )
+            )
+
+    # 15. Security: P/Invoke LoadLibrary / LoadLibraryA / LoadLibraryW without LoadLibraryEx + LOAD_LIBRARY_SEARCH_SYSTEM32 / SetDefaultDllDirectories
+    has_safe_cs_dll = ("SetDefaultDllDirectories" in code_only) or (
+        "LoadLibraryEx" in code_only and "LOAD_LIBRARY_SEARCH_SYSTEM32" in code_only
+    )
+    if not has_safe_cs_dll:
+        for m in re.finditer(r"\bLoadLibrary(?:A|W)?\s*\(", code_only):
+            line_no = code_only[: m.start()].count("\n") + 1
+            findings.append(
+                Finding(
+                    "WARN",
+                    "SECURITY",
+                    rel,
+                    line_no,
+                    "P/Invoke LoadLibrary/LoadLibraryA/LoadLibraryW without LoadLibraryEx + LOAD_LIBRARY_SEARCH_SYSTEM32 or SetDefaultDllDirectories risks DLL hijacking",
+                )
+            )
+
     return findings
+
+
+def _scan_balanced_cpp_brace(text: str, open_pos: int) -> int | None:
+    """Given text[open_pos] == '{', return index of matching '}', skipping balanced braces."""
+    n = len(text)
+    if open_pos >= n or text[open_pos] != "{":
+        return None
+    depth = 1
+    i = open_pos + 1
+    while i < n:
+        ch = text[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return None
+
+
+def _scan_balanced_cpp_paren(text: str, open_pos: int) -> int | None:
+    n = len(text)
+    if open_pos >= n or text[open_pos] != "(":
+        return None
+    depth = 1
+    i = open_pos + 1
+    while i < n:
+        ch = text[i]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return None
+
+
+def audit_cpp(f: Path, root: Path) -> list[Finding]:
+    rel = f.relative_to(root).as_posix()
+    raw_text = f.read_text(encoding="utf-8", errors="replace")
+    code_only = strip_cpp_comments(raw_text, blank_strings=True)
+    findings: list[Finding] = []
+
+    # 1. co_await inside qualified Class::Method(...) without get_weak() or get_strong()
+    if "co_await" in code_only:
+        n = len(code_only)
+        i = 0
+        stmt_start = 0
+        qual_method_re = re.compile(
+            r"([A-Za-z_]\w*(?:\s*<[^;{}()]*?>)?(?:::(?:~?[A-Za-z_]\w*|operator\s*[^(\s]+)(?:\s*<[^;{}()]*?>)?)+)\s*\("
+        )
+        control_kw_re = re.compile(r"^\s*(?:if|else|for|while|switch|catch|try|do|return|co_return)\b")
+
+        while i < n:
+            ch = code_only[i]
+            # Skip preprocessor directives (start of line '#')
+            if ch == "#" and (i == 0 or code_only[i - 1] == "\n"):
+                while i < n:
+                    nl = code_only.find("\n", i)
+                    if nl == -1:
+                        i = n
+                        break
+                    if nl > 0 and code_only[nl - 1] == "\\":
+                        i = nl + 1
+                        continue
+                    i = nl + 1
+                    break
+                stmt_start = i
+                continue
+
+            if ch in (";", "}"):
+                stmt_start = i + 1
+                i += 1
+                continue
+
+            if ch == "{":
+                header = code_only[stmt_start:i]
+                # Enter namespace or extern "..." blocks instead of skipping them
+                if re.match(r"^\s*(?:(?:inline\s+)?namespace\b|extern\s+\"[^\"]*\"\s*$)", header):
+                    stmt_start = i + 1
+                    i += 1
+                    continue
+
+                close_brace = _scan_balanced_cpp_brace(code_only, i)
+                if close_brace is None:
+                    break
+
+                if not control_kw_re.match(header) and not re.match(r"^\s*(?:template\s*<[^>]*>\s*)?(?:class|struct|union|enum)\b", header):
+                    m = qual_method_re.search(header)
+                    if m is not None:
+                        prefix_before_name = header[: m.start()]
+                        paren_open_in_header = m.end() - 1
+                        paren_close_in_header = _scan_balanced_cpp_paren(header, paren_open_in_header)
+                        has_eq_before = "=" in re.sub(r"<[^<>]*>", "", prefix_before_name)
+                        tail_after_paren = header[paren_close_in_header + 1 :] if paren_close_in_header is not None else ""
+                        valid_tail = bool(
+                            re.match(
+                                r"^\s*(?:const\b|volatile\b|mutable\b|noexcept\b|override\b|final\b|requires\b|&|&&|->|:|\[\[|$)",
+                                tail_after_paren,
+                            )
+                        )
+                        if paren_close_in_header is not None and not has_eq_before and valid_tail:
+                            body = code_only[i + 1 : close_brace]
+                            co_m = re.search(r"\bco_await\b", body)
+                            if co_m is not None and not re.search(r"\b(?:get_weak|get_strong)\s*\(", body):
+                                qual_name = re.sub(r"\s+", "", m.group(1))
+                                line_no = code_only[: i + 1 + co_m.start()].count("\n") + 1
+                                findings.append(
+                                    Finding(
+                                        "WARN",
+                                        "CPP-LIFETIME",
+                                        rel,
+                                        line_no,
+                                        f"co_await inside {qual_name}(...) without get_weak() or get_strong() risks dangling 'this' after coroutine suspension",
+                                    )
+                                )
+
+                i = close_brace + 1
+                stmt_start = i
+                continue
+
+            i += 1
+
+    # 2. Raw LoadLibraryA / LoadLibraryW (or LoadLibrary) without LoadLibraryEx + LOAD_LIBRARY_SEARCH_SYSTEM32
+    has_safe_cpp_dll = "LoadLibraryEx" in code_only and "LOAD_LIBRARY_SEARCH_SYSTEM32" in code_only
+    if not has_safe_cpp_dll:
+        for m in re.finditer(r"(?<![.\w>])\bLoadLibrary(?:A|W)?\s*\(", code_only):
+            line_no = code_only[: m.start()].count("\n") + 1
+            findings.append(
+                Finding(
+                    "WARN",
+                    "SECURITY",
+                    rel,
+                    line_no,
+                    "Raw LoadLibraryA/LoadLibraryW without LoadLibraryEx + LOAD_LIBRARY_SEARCH_SYSTEM32 risks DLL search-order hijacking",
+                )
+            )
+
+    # 3. AdjustWindowRect instead of AdjustWindowRectExForDpi
+    for m in re.finditer(r"(?<![.\w>])\bAdjustWindowRect(?:Ex)?\s*\(", code_only):
+        line_no = code_only[: m.start()].count("\n") + 1
+        findings.append(
+            Finding(
+                "WARN",
+                "DPI",
+                rel,
+                line_no,
+                "AdjustWindowRect/AdjustWindowRectEx assumes 96 DPI; use AdjustWindowRectExForDpi for PerMonitorV2 DPI scaling",
+            )
+        )
+
+    return findings
+
+
+def _make_sarif_rule(
+    rule_id: str,
+    name: str,
+    level: str,
+    short_desc: str,
+    tags: list[str],
+) -> dict[str, object]:
+    return {
+        "id": rule_id,
+        "name": name,
+        "shortDescription": {"text": short_desc},
+        "defaultConfiguration": {"level": level},
+        "properties": {"tags": ["windows-native", *tags]},
+    }
+
+
+SARIF_RULES: list[dict[str, object]] = [
+    _make_sarif_rule("WN-CSPROJ-001", "WpfTrimmingOrAotUnsupported", "error", "PublishTrimmed or PublishAot is unsupported with UseWPF=true (NETSDK1168).", ["csproj", "wpf"]),
+    _make_sarif_rule("WN-CSPROJ-002", "LibraryImportRequiresUnsafe", "error", "[LibraryImport] requires AllowUnsafeBlocks=true (SYSLIB1062).", ["csproj", "interop"]),
+    _make_sarif_rule("WN-CSPROJ-003", "MvvmPartialPropertyRequires842", "error", "CommunityToolkit.Mvvm < 8.4.2 fails CS9248 on partial [ObservableProperty].", ["csproj", "mvvm"]),
+    _make_sarif_rule("WN-CSPROJ-004", "WinExeMissingApplicationManifest", "warning", "OutputType=WinExe lacks an ApplicationManifest for PerMonitorV2 DPI and Win10/11 supportedOS.", ["csproj", "manifest"]),
+    _make_sarif_rule("WN-CSPROJ-005", "PublishSingleFileConfiguration", "warning", "PublishSingleFile configuration issue (missing IncludeNativeLibrariesForSelfExtract, IncludeAllContentForSelfExtract, or unconditional Debug packing).", ["csproj", "packaging"]),
+    _make_sarif_rule("WN-CSPROJ-006", "MissingPublishReadyToRun", "note", "Release desktop WinExe builds benefit from PublishReadyToRun=true.", ["csproj", "performance"]),
+    _make_sarif_rule("WN-CSPROJ-007", "InvalidCsprojXml", "error", "Malformed XML in .csproj file.", ["csproj"]),
+    _make_sarif_rule("WN-MANIFEST-001", "ManifestMissingPerMonitorV2", "warning", "app.manifest lacks PerMonitorV2 dpiAwareness.", ["manifest", "dpi"]),
+    _make_sarif_rule("WN-MANIFEST-002", "ManifestMissingSupportedOs", "warning", "app.manifest lacks Windows 10/11 supportedOS compatibility GUID.", ["manifest"]),
+    _make_sarif_rule("WN-MANIFEST-003", "ManifestRequestsAdministrator", "warning", "app.manifest requests requireAdministrator elevation (review least privilege & UIPI).", ["manifest", "security"]),
+    _make_sarif_rule("WN-MANIFEST-004", "ManifestMissingLongPathAware", "note", "app.manifest lacks longPathAware=true.", ["manifest"]),
+    _make_sarif_rule("WN-MANIFEST-005", "InvalidManifestXml", "error", "Malformed XML in .manifest file.", ["manifest"]),
+    _make_sarif_rule("WN-WPF-001", "WpfInvalidVisualStateSetters", "error", "VisualState.Setters is WinUI/UWP only and invalid in WPF XAML.", ["wpf", "xaml"]),
+    _make_sarif_rule("WN-WPF-002", "WpfInvalidAccessibilityView", "error", "AutomationProperties.AccessibilityView is WinUI/UWP only and triggers MC3072 in WPF.", ["wpf", "xaml", "a11y"]),
+    _make_sarif_rule("WN-WPF-003", "WpfChildrenIndexerAssignment", "error", "Direct Panel.Children[i] = x assignment throws in WPF; use RemoveAt + Insert.", ["wpf", "csharp"]),
+    _make_sarif_rule("WN-WINUI-001", "WinUI3WindowCurrentNull", "error", "Window.Current is always null in WinUI 3 desktop apps.", ["winui3", "csharp"]),
+    _make_sarif_rule("WN-WINUI-002", "WinUI3UnpackagedApplicationData", "warning", "ApplicationData.Current throws in unpackaged apps without a Package.Current / GetCurrentPackageFullName guard.", ["winui3", "packaging"]),
+    _make_sarif_rule("WN-WV2-001", "WebView2DefaultUserDataFolder", "warning", "EnsureCoreWebView2Async() without explicit environment/UserDataFolder fails under Program Files.", ["webview2", "packaging"]),
+    _make_sarif_rule("WN-WV2-002", "WebView2HostObjectSurface", "note", "AddHostObjectToScript exposes .NET/COM host objects to web script.", ["webview2", "security"]),
+    _make_sarif_rule("WN-WV2-003", "WebView2DevToolsInRelease", "warning", "AreDevToolsEnabled = true outside #if DEBUG leaves DevTools enabled in Release.", ["webview2", "security"]),
+    _make_sarif_rule("WN-SEC-001", "DpapiLocalMachineScope", "error", "ProtectedData.Protect uses DataProtectionScope.LocalMachine instead of CurrentUser.", ["security", "dpapi"]),
+    _make_sarif_rule("WN-SEC-002", "UnsafeShellExecuteProcessStart", "warning", "Process.Start with UseShellExecute=true uses unvalidated or interpolated target/arguments.", ["security"]),
+    _make_sarif_rule("WN-SEC-003", "UnrestrictedNamedPipeServer", "warning", "NamedPipeServerStream created without PipeOptions.CurrentUserOnly or PipeSecurity.", ["security", "ipc"]),
+    _make_sarif_rule("WN-SEC-004", "TlsValidationDisabled", "error", "ServerCertificateCustomValidationCallback unconditionally returns true or uses DangerousAcceptAnyServerCertificateValidator outside #if DEBUG.", ["security", "tls"]),
+    _make_sarif_rule("WN-SEC-005", "UnsafeLoadLibrary", "warning", "LoadLibrary/LoadLibraryA/LoadLibraryW used without LoadLibraryEx + LOAD_LIBRARY_SEARCH_SYSTEM32.", ["security", "dll-hijacking"]),
+    _make_sarif_rule("WN-LIFE-001", "MutexPrematureGc", "warning", "new Mutex(...) without GC.KeepAlive or using scope risks premature finalization.", ["lifecycle"]),
+    _make_sarif_rule("WN-LIFE-002", "SystemEventsLeak", "warning", "SystemEvents subscription without matching -= unsubscription leaks strong GC roots.", ["lifecycle", "memory-leak"]),
+    _make_sarif_rule("WN-LIFE-003", "AsyncVoidNonEventHandler", "warning", "async void method outside event handler or UI lifecycle override can crash the process.", ["lifecycle"]),
+    _make_sarif_rule("WN-LIFE-004", "UnpairedRegisterHotKey", "warning", "RegisterHotKey called without matching UnregisterHotKey cleanup.", ["lifecycle"]),
+    _make_sarif_rule("WN-LIFE-005", "ApplicationIdlePushFrameHang", "warning", "Dispatcher.PushFrame(ApplicationIdle) hangs when 60 FPS CompositionTarget.Rendering runs.", ["lifecycle", "wpf"]),
+    _make_sarif_rule("WN-CPP-001", "CppWinrtCoroutineDanglingThis", "warning", "co_await inside Class::Method(...) without get_weak() or get_strong() risks dangling this.", ["cpp", "cppwinrt", "lifetime"]),
+    _make_sarif_rule("WN-CPP-002", "CppNonDpiAdjustWindowRect", "warning", "AdjustWindowRect/AdjustWindowRectEx assumes 96 DPI; use AdjustWindowRectExForDpi.", ["cpp", "dpi"]),
+    _make_sarif_rule("WN-A11Y-001", "IconButtonMissingAutomationName", "warning", "Icon-only Button missing AutomationProperties.Name.", ["a11y", "xaml"]),
+    _make_sarif_rule("WN-A11Y-002", "FocusVisualStyleRemoved", "warning", "FocusVisualStyle='{x:Null}' removes keyboard focus cue.", ["a11y", "xaml"]),
+    _make_sarif_rule("WN-A11Y-003", "ClickableBorderNotFocusable", "warning", "Clickable Border is not keyboard-focusable; use Button or ListBoxItem.", ["a11y", "xaml"]),
+    _make_sarif_rule("WN-PERF-001", "UiVirtualizationDisabled", "warning", "UI virtualization disabled (ScrollViewer wrapping ItemsControl/ListBox or CanContentScroll=False).", ["performance", "xaml"]),
+    _make_sarif_rule("WN-PERF-002", "ItemTemplateDropShadow", "warning", "Shadow effect inside DataTemplate/ItemTemplate multiplies GPU shader passes.", ["performance", "xaml"]),
+    _make_sarif_rule("WN-PERF-003", "UnfrozenResourceOrBrush", "warning", "Static WPF brush/effect resource or runtime SolidColorBrush not frozen.", ["performance", "wpf"]),
+    _make_sarif_rule("WN-PERF-004", "TransientHttpClient", "warning", "new HttpClient() inside method/loop risks socket exhaustion and stale DNS.", ["performance", "networking"]),
+    _make_sarif_rule("WN-PERF-005", "RenderingCallbackIssue", "warning", "CompositionTarget.Rendering leak, missing RenderingTime dedupe, BlurRadius animation, or .Height mutation.", ["performance", "animation"]),
+    _make_sarif_rule("WN-PERF-006", "ForeverAnimationOnLoaded", "warning", "RepeatBehavior='Forever' started on Loaded keeps ticking while Collapsed.", ["performance", "animation"]),
+    _make_sarif_rule("WN-CONTRAST-001", "WcagContrastBelowThreshold", "warning", "Foreground/background palette brush contrast ratio is below WCAG AA 4.5:1.", ["a11y", "contrast"]),
+    _make_sarif_rule("WN-UI-001", "HardcodedHexColorToken", "warning", "Hardcoded hex color in view/control XAML; prefer a DynamicResource/ThemeResource token.", ["ui", "theming"]),
+    _make_sarif_rule("WN-UI-002", "AllowsTransparencyBreaksDwm", "warning", "Window AllowsTransparency='True' breaks Windows 11 corners, Snap Layouts, and Mica.", ["ui", "dwm"]),
+    _make_sarif_rule("WN-UI-003", "WindowChromeMissingSnapOrHitTest", "warning", "WindowChrome title bar missing IsHitTestVisibleInChrome or HTMAXBUTTON Snap Layout handling.", ["ui", "chrome"]),
+    _make_sarif_rule("WN-UI-004", "MultiMonitorUnsignedCoordinates", "warning", "WM_NCHITTEST lParam extraction missing signed (short) casts for negative multi-monitor coordinates.", ["ui", "dpi"]),
+]
+
+_SARIF_RULE_INDEX = {str(rule["id"]): idx for idx, rule in enumerate(SARIF_RULES)}
+_SARIF_LEVEL_MAP = {"ERROR": "error", "WARN": "warning", "INFO": "note"}
+
+
+def _resolve_rule_id(detail: dict[str, object]) -> str:
+    tag = str(detail.get("tag") or "")
+    msg = str(detail.get("message") or "")
+
+    if tag == "CONTRAST":
+        return "WN-CONTRAST-001"
+    if tag == "CSPROJ":
+        if "Invalid XML" in msg:
+            return "WN-CSPROJ-007"
+        if "PublishTrimmed/PublishAot" in msg:
+            return "WN-CSPROJ-001"
+        if "LibraryImport" in msg:
+            return "WN-CSPROJ-002"
+        if "CommunityToolkit.Mvvm" in msg:
+            return "WN-CSPROJ-003"
+        if "ApplicationManifest" in msg:
+            return "WN-CSPROJ-004"
+        if "PublishSingleFile" in msg or "IncludeAllContentForSelfExtract" in msg:
+            return "WN-CSPROJ-005"
+        return "WN-CSPROJ-006"
+    if tag == "MANIFEST":
+        if "Invalid XML" in msg:
+            return "WN-MANIFEST-005"
+        if "PerMonitorV2" in msg:
+            return "WN-MANIFEST-001"
+        if "supportedOS" in msg:
+            return "WN-MANIFEST-002"
+        if "requireAdministrator" in msg:
+            return "WN-MANIFEST-003"
+        return "WN-MANIFEST-004"
+    if tag == "WPF-BUG":
+        if "VisualState.Setters" in msg:
+            return "WN-WPF-001"
+        if "AccessibilityView" in msg:
+            return "WN-WPF-002"
+        return "WN-WPF-003"
+    if tag == "WINUI3":
+        if "Window.Current" in msg:
+            return "WN-WINUI-001"
+        return "WN-WINUI-002"
+    if tag == "WEBVIEW2":
+        if "EnsureCoreWebView2Async" in msg:
+            return "WN-WV2-001"
+        if "AddHostObjectToScript" in msg:
+            return "WN-WV2-002"
+        return "WN-WV2-003"
+    if tag == "SECURITY":
+        if "ProtectedData.Protect" in msg:
+            return "WN-SEC-001"
+        if "Process.Start" in msg:
+            return "WN-SEC-002"
+        if "NamedPipeServerStream" in msg:
+            return "WN-SEC-003"
+        if "ServerCertificateCustomValidationCallback" in msg or "DangerousAcceptAnyServerCertificateValidator" in msg:
+            return "WN-SEC-004"
+        return "WN-SEC-005"
+    if tag in ("LIFECYCLE", "MEMORY-LEAK", "TRAP"):
+        if "Mutex" in msg:
+            return "WN-LIFE-001"
+        if "SystemEvents." in msg:
+            return "WN-LIFE-002"
+        if "async void" in msg:
+            return "WN-LIFE-003"
+        if "RegisterHotKey" in msg:
+            return "WN-LIFE-004"
+        return "WN-LIFE-005"
+    if tag == "CPP-LIFETIME":
+        return "WN-CPP-001"
+    if tag == "DPI":
+        return "WN-CPP-002"
+    if tag == "A11Y":
+        if "Icon-only Button" in msg:
+            return "WN-A11Y-001"
+        if "FocusVisualStyle" in msg:
+            return "WN-A11Y-002"
+        return "WN-A11Y-003"
+    if tag in ("PERF", "FREEZE", "ANIM", "ANIM-LEAK"):
+        if "ScrollViewer" in msg or "CanContentScroll" in msg:
+            return "WN-PERF-001"
+        if "Shadow effect" in msg:
+            return "WN-PERF-002"
+        if "Freeze" in msg:
+            return "WN-PERF-003"
+        if "HttpClient" in msg:
+            return "WN-PERF-004"
+        if "RepeatBehavior" in msg:
+            return "WN-PERF-006"
+        return "WN-PERF-005"
+    if tag == "TOKEN":
+        return "WN-UI-001"
+    if tag == "DWM":
+        return "WN-UI-002"
+    if tag == "CHROME":
+        return "WN-UI-003"
+    if tag == "DPI/MULTI-MON":
+        return "WN-UI-004"
+    return "WN-UI-001"
+
+
+def _find_brush_definition_location(root: Path, message: str) -> tuple[str, int]:
+    m = re.match(r"^'([^']+)'\s+on\s+'([^']+)'", message)
+    brush_key = m.group(1) if m else None
+    xaml_files = iter_project_files(root, (".xaml",)) if root.is_dir() else []
+    if brush_key:
+        key_pat = re.compile(rf'\bx:Key="{re.escape(brush_key)}"')
+        for xf in xaml_files:
+            text = strip_xml_comments_preserve_lines(xf.read_text(encoding="utf-8", errors="replace"))
+            km = key_pat.search(text)
+            if km:
+                line_no = text[: km.start()].count("\n") + 1
+                return xf.relative_to(root).as_posix(), line_no
+    if xaml_files:
+        return xaml_files[0].relative_to(root).as_posix(), 1
+    return ".", 1
+
+
+def build_sarif_report(result: dict[str, object]) -> dict[str, object]:
+    """Convert a run_audit() dictionary into a valid SARIF 2.1.0 report."""
+    root = Path(str(result.get("root") or "."))
+    details = result.get("details") or []
+    sarif_results: list[dict[str, object]] = []
+
+    for detail in details:
+        if not isinstance(detail, dict):
+            continue
+        severity = str(detail.get("severity") or "WARN").upper()
+        level = _SARIF_LEVEL_MAP.get(severity, "warning")
+        rule_id = _resolve_rule_id(detail)
+        rule_index = _SARIF_RULE_INDEX[rule_id]
+        message_text = str(detail.get("message") or "")
+        file_rel = detail.get("file")
+        line_raw = detail.get("line")
+
+        if isinstance(file_rel, str) and file_rel:
+            uri = file_rel.replace("\\", "/")
+            start_line = int(line_raw) if isinstance(line_raw, int) and line_raw >= 1 else 1
+        else:
+            uri, start_line = _find_brush_definition_location(root, message_text)
+
+        sarif_results.append(
+            {
+                "ruleId": rule_id,
+                "ruleIndex": rule_index,
+                "level": level,
+                "message": {"text": message_text},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": uri},
+                            "region": {"startLine": start_line},
+                        }
+                    }
+                ],
+            }
+        )
+
+    return {
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "windows-native-auditor",
+                        "version": "2.0.0",
+                        "informationUri": "https://github.com/Destro01400/windows-native",
+                        "rules": SARIF_RULES,
+                    }
+                },
+                "results": sarif_results,
+            }
+        ],
+    }
 
 
 def run_audit(root: Path, ui_only: bool = False) -> dict[str, object]:
     xaml_files = iter_project_files(root, (".xaml",))
     cs_files = iter_project_files(root, (".cs",))
+    cpp_files = [] if ui_only else iter_project_files(root, (".cpp", ".cc", ".h", ".hpp"))
     csproj_files = [] if ui_only else iter_project_files(root, (".csproj",))
     manifest_files = [] if ui_only else iter_project_files(root, (".manifest",))
     appx_manifests = [] if ui_only else iter_project_files(root, (".appxmanifest",))
@@ -1162,6 +2021,7 @@ def run_audit(root: Path, ui_only: bool = False) -> dict[str, object]:
     findings: list[Finding] = []
     use_wpf_any = False
     use_winui_any = False
+    unpackaged_dirs: set[Path] = set()
 
     if not ui_only:
         central_versions = _collect_central_package_versions(root)
@@ -1170,6 +2030,7 @@ def run_audit(root: Path, ui_only: bool = False) -> dict[str, object]:
             findings.extend(proj_findings)
             use_wpf_any = use_wpf_any or use_wpf
             use_winui_any = use_winui_any or use_winui
+        unpackaged_dirs = _collect_unpackaged_project_dirs(csproj_files)
 
         for mf in manifest_files:
             findings.extend(audit_manifest(mf, root))
@@ -1182,7 +2043,10 @@ def run_audit(root: Path, ui_only: bool = False) -> dict[str, object]:
     for cf in cs_files:
         findings.extend(audit_cs_ui(cf, root))
         if not ui_only:
-            findings.extend(audit_cs_engineering(cf, root))
+            is_unpackaged = _cs_belongs_to_unpackaged_project(cf, root, csproj_files, unpackaged_dirs)
+            findings.extend(audit_cs_engineering(cf, root, is_unpackaged=is_unpackaged))
+    for cppf in cpp_files:
+        findings.extend(audit_cpp(cppf, root))
 
     counts = {
         "error": sum(1 for f in findings if f.severity == "ERROR"),
@@ -1195,6 +2059,7 @@ def run_audit(root: Path, ui_only: bool = False) -> dict[str, object]:
         "mode": "ui-only" if ui_only else "full",
         "xaml_files": len(xaml_files),
         "cs_files": len(cs_files),
+        "cpp_files": len(cpp_files),
         "csproj_files": len(csproj_files),
         "manifest_files": len(manifest_files),
         "counts": counts,
@@ -1204,11 +2069,13 @@ def run_audit(root: Path, ui_only: bool = False) -> dict[str, object]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Static auditor for Windows desktop apps (WPF, WinUI 3, .csproj, manifest, C#).")
+    parser = argparse.ArgumentParser(description="Static auditor for Windows desktop apps (WPF, WinUI 3, C++/WinRT, .csproj, manifest, C#).")
     parser.add_argument("project_dir", help="Path to the Windows app project directory")
     parser.add_argument("--ui-only", action="store_true", help="Run only XAML & UI C# checks (audit_wpf_ui.py compatibility mode)")
     parser.add_argument("--strict", action="store_true", help="Exit with code 1 if any ERROR or WARN finding is reported (INFO notes do not fail)")
-    parser.add_argument("--json", action="store_true", help="Print findings as JSON")
+    output_group = parser.add_mutually_exclusive_group()
+    output_group.add_argument("--json", action="store_true", help="Print findings as JSON")
+    output_group.add_argument("--sarif", action="store_true", help="Print findings as SARIF 2.1.0 JSON")
     args = parser.parse_args(argv)
 
     root = Path(args.project_dir).resolve()
@@ -1220,9 +2087,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.json:
         print(json.dumps(result, indent=2))
+    elif args.sarif:
+        print(json.dumps(build_sarif_report(result), indent=2))
     else:
         print(
-            f"Scanned {result['xaml_files']} XAML, {result['cs_files']} C#, "
+            f"Scanned {result['xaml_files']} XAML, {result['cs_files']} C#, {result['cpp_files']} C++, "
             f"{result['csproj_files']} .csproj, {result['manifest_files']} .manifest files in {root} "
             f"(mode={result['mode']})"
         )

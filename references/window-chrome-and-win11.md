@@ -1,6 +1,8 @@
 # Native Windows 11 Integration in WPF (.NET 9/10), DWM Interop & WinUI 3
 
 > **Scope:** `System.Windows.Shell.WindowChrome`, `dwmapi.dll` backdrops/corners/colors, Windows 11 Snap Layouts (`HTMAXBUTTON`), Per-Monitor DPI v2, crisp rendering, runtime OS theme/accent/text-scale sync, `.NET 9/10` `ThemeMode`, Shell extras, ecosystem libraries, and WinUI 3 patterns.
+>
+> **Related:** Generate a compile-verified `WindowChrome` + `HTMAXBUTTON` Snap Layouts starter with [`scaffold_windows_app.py`](../scripts/scaffold_windows_app.py) (`wpf-modern`). See [compiler-traps-and-compat.md](compiler-traps-and-compat.md) for `AllowsTransparency`, `SYSLIB1062`, `WPF0001`, and Windows `19041`–`26100` DWM compatibility, plus [background-services-and-ipc.md](background-services-and-ipc.md) for tray companion / Session 0 IPC.
 
 ## Table of Contents
 

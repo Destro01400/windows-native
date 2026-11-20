@@ -1,0 +1,274 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
+                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                    xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+                    mc:Ignorable="po">
+
+    <!-- Palette Brushes (All static brushes frozen for low memory overhead; WCAG AA >= 4.5:1 verified) -->
+    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#FFF3F3F3" po:Freeze="True" />
+    <SolidColorBrush x:Key="Surface1Brush" Color="#FFF9F9F9" po:Freeze="True" />
+    <SolidColorBrush x:Key="CardSurfaceBrush" Color="#FFFFFFFF" po:Freeze="True" />
+
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FF1A1A1A" po:Freeze="True" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#FF525252" po:Freeze="True" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#FF616161" po:Freeze="True" />
+
+    <SolidColorBrush x:Key="AccentBrush" Color="#FF005FB8" po:Freeze="True" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#FF0053A0" po:Freeze="True" />
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#FF004586" po:Freeze="True" />
+    <SolidColorBrush x:Key="OnAccentBrush" Color="#FFFFFFFF" po:Freeze="True" />
+
+    <SolidColorBrush x:Key="ControlFillBrush" Color="#FFFFFFFF" po:Freeze="True" />
+    <SolidColorBrush x:Key="ControlHoverBrush" Color="#FFF5F5F5" po:Freeze="True" />
+    <SolidColorBrush x:Key="ControlPressedBrush" Color="#FFEBEBEB" po:Freeze="True" />
+    <SolidColorBrush x:Key="ControlStrokeBrush" Color="#24000000" po:Freeze="True" />
+    <SolidColorBrush x:Key="CardStrokeBrush" Color="#14000000" po:Freeze="True" />
+    <SolidColorBrush x:Key="DividerBrush" Color="#14000000" po:Freeze="True" />
+
+    <SolidColorBrush x:Key="SubtleHoverBrush" Color="#0F000000" po:Freeze="True" />
+    <SolidColorBrush x:Key="SubtlePressedBrush" Color="#1A000000" po:Freeze="True" />
+    <SolidColorBrush x:Key="CaptionCloseHoverBrush" Color="#FFC42B1C" po:Freeze="True" />
+    <SolidColorBrush x:Key="CaptionCloseForegroundBrush" Color="#FFFFFFFF" po:Freeze="True" />
+
+    <SolidColorBrush x:Key="StatusSuccessBrush" Color="#FF0F7B0F" po:Freeze="True" />
+    <SolidColorBrush x:Key="StatusSuccessSoftBrush" Color="#FFDFF6DD" po:Freeze="True" />
+    <SolidColorBrush x:Key="StatusWarningBrush" Color="#FF7A4700" po:Freeze="True" />
+    <SolidColorBrush x:Key="StatusWarningSoftBrush" Color="#FFFFF4CE" po:Freeze="True" />
+    <SolidColorBrush x:Key="StatusErrorBrush" Color="#FFB91C1C" po:Freeze="True" />
+    <SolidColorBrush x:Key="StatusErrorSoftBrush" Color="#FFFDE7E9" po:Freeze="True" />
+
+    <SolidColorBrush x:Key="FocusOuterBrush" Color="#FF1A1A1A" po:Freeze="True" />
+    <SolidColorBrush x:Key="FocusInnerBrush" Color="#FFFFFFFF" po:Freeze="True" />
+
+    <!-- Fonts -->
+    <FontFamily x:Key="BodyFontFamily">Segoe UI Variable Text, Segoe UI, Yu Gothic UI, Microsoft YaHei UI</FontFamily>
+    <FontFamily x:Key="SymbolFontFamily">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+
+    <!-- Dual-Stroke Keyboard Focus Visual -->
+    <Style x:Key="Windows11FocusVisual">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border Margin="-3"
+                            BorderThickness="2"
+                            BorderBrush="{DynamicResource FocusOuterBrush}"
+                            CornerRadius="6"
+                            SnapsToDevicePixels="True">
+                        <Border BorderThickness="1"
+                                BorderBrush="{DynamicResource FocusInnerBrush}"
+                                CornerRadius="4" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Typography Ramp -->
+    <Style x:Key="CaptionTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource BodyFontFamily}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="LineHeight" Value="16" />
+        <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+
+    <Style x:Key="BodyTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource BodyFontFamily}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="LineHeight" Value="20" />
+        <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="BodyStrongTextStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextStyle}">
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="SubtitleTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource BodyFontFamily}" />
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="LineHeight" Value="28" />
+        <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="TitleTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource BodyFontFamily}" />
+        <Setter Property="FontSize" Value="28" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="LineHeight" Value="36" />
+        <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+
+    <!-- Window Caption Buttons -->
+    <Style x:Key="CaptionButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="46" />
+        <Setter Property="Height" Value="32" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="FocusVisualStyle" Value="{DynamicResource Windows11FocusVisual}" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{TemplateBinding Background}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsActive, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
+                <Setter Property="Opacity" Value="0.55" />
+            </DataTrigger>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource SubtleHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource SubtlePressedBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="CaptionCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource CaptionButtonStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsActive, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
+                <Setter Property="Opacity" Value="0.55" />
+            </DataTrigger>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource CaptionCloseHoverBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource CaptionCloseForegroundBrush}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource CaptionCloseHoverBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource CaptionCloseForegroundBrush}" />
+                <Setter Property="Opacity" Value="0.85" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Primary Accent Button -->
+    <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+        <Setter Property="FontFamily" Value="{StaticResource BodyFontFamily}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="16,6" />
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="FocusVisualStyle" Value="{DynamicResource Windows11FocusVisual}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="RootBorder"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="4"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="RootBorder" Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="RootBorder" Property="Background" Value="{DynamicResource AccentPressedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="RootBorder" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Secondary Neutral Button -->
+    <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+        <Setter Property="FontFamily" Value="{StaticResource BodyFontFamily}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="12,6" />
+        <Setter Property="Background" Value="{DynamicResource ControlFillBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="FocusVisualStyle" Value="{DynamicResource Windows11FocusVisual}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="RootBorder"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="RootBorder" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="RootBorder" Property="Background" Value="{DynamicResource ControlPressedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="RootBorder" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Styled TextBox -->
+    <Style x:Key="FluentTextBoxStyle" TargetType="TextBox">
+        <Setter Property="FontFamily" Value="{StaticResource BodyFontFamily}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="{DynamicResource ControlFillBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="FocusVisualStyle" Value="{DynamicResource Windows11FocusVisual}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Chrome"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="0"
+                                      VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Chrome" Property="BorderThickness" Value="1,1,1,2" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Chrome" Property="Opacity" Value="0.55" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

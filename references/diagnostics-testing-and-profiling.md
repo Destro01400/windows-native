@@ -1,6 +1,8 @@
 # Windows App Testing, Crash Dumps, Observability & Profiling (.NET 9/10)
 
 > **Scope:** Testing pyramid for WPF & WinUI 3 (`xUnit`/`NUnit`, `Xunit.StaFact`, `FlaUI.UIA3`, `RenderTargetBitmap` snapshots, GitHub Actions caveats), Windows Error Reporting (`LocalDumps`), recursive-safe crash capture, `Serilog.Sinks.Async` + `OpenTelemetry` flushing, and live CPU/memory/GPU diagnostics (`dotnet-counters`, `dotnet-gcdump`, `dotnet-dump`, `dotnet-trace`, PerfView, WPR/WPA, VS XAML Binding Failures, Snoop).
+>
+> **Related:** See [compiler-traps-and-compat.md](compiler-traps-and-compat.md) for compiler/runtime trap lookup, [webview2-and-hybrid-apps.md](webview2-and-hybrid-apps.md) for WebView2 `TrySuspendAsync` memory control, and [graphics-media-and-windows-ai.md](graphics-media-and-windows-ai.md) for Direct2D/SkiaSharp/Win2D/DirectComposition rendering paths.
 
 ## Table of Contents
 
@@ -213,7 +215,7 @@ public static class SmokeUiTests
 
 1. **No Interactive Desktop Session (`WinSta0`):** Hosted `windows-latest` runners execute under a non-interactive service/agent session without an unlocked console desktop. Hardware mouse/keyboard injection (`Mouse.Click(x, y)`, `SendInput`) and foreground focus assertions frequently fail with `ErrorCode: 5 (Access Denied)` or `NullReferenceException` on `GetMainWindow`.
 2. **No Physical GPU:** Hosted VMs lack hardware GPUs; DirectX/WebView2 or hardware-accelerated composition may stall or draw blank frames unless software rendering is enabled (`RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly` in WPF test mode).
-3. **Recommended CI Split:** Run Layer 1 (headless unit), Layer 2 (`[WpfFact]` + offscreen `RenderTargetBitmap`), and `audit_windows_app.py --strict` on `windows-latest`. Inside UIA tests, prefer pattern calls (`Invoke()`, `ValuePattern`, `Toggle()`) over physical cursor clicks, and run full interactive FlaUI suites on a **self-hosted Windows runner** with an active auto-logon desktop session.
+3. **Recommended CI Split:** Run Layer 1 (headless unit), Layer 2 (`[WpfFact]` + offscreen `RenderTargetBitmap`), and [`audit_windows_app.py`](../scripts/audit_windows_app.py) (`--strict` or `--sarif` for GitHub Code Scanning) on `windows-latest`. Inside UIA tests, prefer pattern calls (`Invoke()`, `ValuePattern`, `Toggle()`) over physical cursor clicks, and run full interactive FlaUI suites on a **self-hosted Windows runner** with an active auto-logon desktop session.
 
 ---
 

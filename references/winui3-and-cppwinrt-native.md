@@ -1,6 +1,8 @@
 # WinUI 3 (Windows App SDK), C# NativeAOT & C++/WinRT / Modern Win32 Native Apps
 
 > **Scope:** Full-lifecycle engineering for **WinUI 3** (`Microsoft.WindowsAppSDK` on `.NET 9/10`), **C# NativeAOT**, and zero-.NET-runtime **C++/WinRT** or **pure Win32 + Direct2D / DirectComposition** Windows 11 apps. APIs are tagged with origin (`Windows App SDK`, `WinRT`, `.NET BCL`, `C++/WinRT`, `WIL`, or `Win32/DXGI/D2D/DComp`).
+>
+> **Related:** Scaffold compile-verified starters with [`scaffold_windows_app.py`](../scripts/scaffold_windows_app.py) (`--template winui3-aot` or `--template cppwinrt-dcomp`). See [compiler-traps-and-compat.md](compiler-traps-and-compat.md) for `Window.Current == null`, `CS0115`, `CS9248`, `NETSDK1168`, and OS build guards, [webview2-and-hybrid-apps.md](webview2-and-hybrid-apps.md) for WinUI 3 `WebView2` composition, and [graphics-media-and-windows-ai.md](graphics-media-and-windows-ai.md) for Win2D, `SwapChainPanel`, `GraphicsCapturePicker`, and `Microsoft.Windows.AI`.
 
 ## Table of Contents
 **Part A — WinUI 3 (Windows App SDK) Full App Engineering (C# .NET 9/10)**
